@@ -13,6 +13,20 @@ class YarrboardClient
 		this.require_login = require_login;
 	
 		this.boardname = hostname.split(".")[0];
+
+		this.socket_retries = 0;
+		this.retry_time = 0;
+		this.last_heartbeat = 0;
+		this.heartbeat_rate = 1000;
+
+		this.receivedMessageCount = 0;
+		this.sentMessageCount = 0;
+		this.lastReceivedMessageCount = 0;
+		this.lastSentMessageCount = 0;
+		this.lastMessageUpdateTime = Date.now();
+
+		this.throttleTime = Date.now();
+
 	}
 
 	start()
@@ -41,14 +55,41 @@ class YarrboardClient
 
 	json(message)
 	{
-		if (this.ws.readyState == ws.w3cwebsocket.OPEN) {
-			try {
-				//this.log(message.cmd);
-				this.ws.send(JSON.stringify(message));
-			} catch (error) {
-				this.log(`Send error: ${error}`);
+		if (this.throttleTime > Date.now())
+		{
+			let delta = this.throttleTime - Date.now();
+			this.log(`throttled ${delta}ms`);
+			return;
+		}
+		else
+		{
+			if (this.ws.readyState == ws.w3cwebsocket.OPEN)
+			{
+				try {
+					this.sentMessageCount++;
+
+					//this.log(message.cmd);
+					this.ws.send(JSON.stringify(message));
+				} catch (error) {
+					this.log(`Send error: ${error}`);
+				}
 			}
 		}
+	}
+
+	printMessageStats()
+	{
+		let delta = Date.now() - this.lastMessageUpdateTime;
+		let rmps = Math.round(((this.receivedMessageCount - this.lastReceivedMessageCount) / delta) * 1000);
+		let smps = Math.round(((this.sentMessageCount - this.lastSentMessageCount) / delta) * 1000);
+
+		this.log(`Recd m/s: ${rmps} | Sent m/s: ${smps} | Total Received/Sent: ${this.receivedMessageCount} / ${this.sentMessageCount}`);
+
+		this.lastMessageUpdateTime = Date.now();
+		this.lastSentMessageCount = this.sentMessageCount;
+		this.lastReceivedMessageCount = this.receivedMessageCount;
+
+		setTimeout(this.printMessageStats.bind(this), 1000);
 	}
 
 	onopen(event) {}
@@ -80,7 +121,7 @@ class YarrboardClient
 		this.last_heartbeat = Date.now();
 
 		//our connection watcher
-		setTimeout(this._sendHeartbeat.bind(this), 1000);
+		setTimeout(this._sendHeartbeat.bind(this), this.heartbeat_rate);
 
 		if (this.require_login)
 			this.doLogin("admin", "admin");
@@ -107,6 +148,8 @@ class YarrboardClient
 
 	_onmessage(event)
 	{
+		this.receivedMessageCount++;
+
 		if (typeof event.data === 'string') {
 			try {
 				let data = JSON.parse(event.data);
@@ -117,6 +160,24 @@ class YarrboardClient
 					this.log(`Error: ${data.message}`);
 				if (data.status == "success")
 					this.log(`Success: ${data.message}`);
+
+				if (data.status == "error" && data.message == "Websocket busy, throttle connection.")
+				{
+					//okay are we throttled already?
+					let delta = this.throttleTime - Date.now();
+					if (delta > 50)
+						delta = delta * 1.5;
+					else
+						delta = 50;
+		
+					//maximum throttle 5s
+					delta = Math.min(5000, delta);
+					this.log(`Throttling: ${delta}ms`);
+		
+					//okay set our time
+					this.throttleTime = Date.now() + delta;
+				}
+			
 
 				//this is our heartbeat reply, ignore
 				if (data.pong) 
@@ -138,7 +199,7 @@ class YarrboardClient
 			return;
 
 		//did we not get a heartbeat?
-		if (Date.now() - this.last_heartbeat > 1000 * 2)
+		if (Date.now() - this.last_heartbeat > this.heartbeat_rate * 3)
 		{
 			this.log(`Missed heartbeat`)
 			this.ws.close();
@@ -149,7 +210,7 @@ class YarrboardClient
 		if (this.ws.readyState == ws.w3cwebsocket.OPEN)
 		{
 			this.json({"cmd": "ping"});
-			setTimeout(this._sendHeartbeat.bind(this), 1000);
+			setTimeout(this._sendHeartbeat.bind(this), this.heartbeat_rate);
 		}
 		else if (this.ws.readyState == ws.w3cwebsocket.CLOSING)
 		{
@@ -194,7 +255,7 @@ class YarrboardClient
 
 		//set some bounds
 		let my_timeout = 500;
-		my_timeout = Math.max(my_timeout, this.socket_retries * 1000);
+		my_timeout = Math.max(my_timeout, this.socket_retries * this.heartbeat_rate);
 		my_timeout = Math.min(my_timeout, 60000);
 
 		//tee it up.

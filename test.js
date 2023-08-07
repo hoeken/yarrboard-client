@@ -1,4 +1,4 @@
-//import YarrboardClient from './index.js';
+#!/usr/bin/env node
 const YarrboardClient = require('./index.js');
 
 let yb = new YarrboardClient();
