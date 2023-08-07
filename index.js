@@ -26,7 +26,6 @@ class YarrboardClient
 		this.lastMessageUpdateTime = Date.now();
 
 		this.throttleTime = Date.now();
-
 	}
 
 	start()
@@ -44,7 +43,7 @@ class YarrboardClient
 		this.ws.close();
 	}
 
-	doLogin(username, password)
+	login(username, password)
 	{
 		this.json({
 			"cmd": "login",
@@ -61,7 +60,7 @@ class YarrboardClient
 			this.log(`throttled ${delta}ms`);
 			return;
 		}
-		else
+		else if (!this.closed)
 		{
 			if (this.ws.readyState == ws.w3cwebsocket.OPEN)
 			{
@@ -116,6 +115,7 @@ class YarrboardClient
 		this.log(`Connected`);
 
 		//we are connected, reload
+		this.closed = false;
 		this.socket_retries = 0;
 		this.retry_time = 0;
 		this.last_heartbeat = Date.now();
@@ -124,7 +124,7 @@ class YarrboardClient
 		setTimeout(this._sendHeartbeat.bind(this), this.heartbeat_rate);
 
 		if (this.require_login)
-			this.doLogin("admin", "admin");
+			this.login("admin", "admin");
 
 		//load our config
 		this.json({"cmd": "get_config"});
