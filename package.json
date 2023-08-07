@@ -9,7 +9,6 @@
 		"email": "hoeken@gmail.com",
 		"url": "https://wind.ninja"
 	},
-	"type": "module",
 	"exports": "./index.js",
 	"engines": {
 		"node": ">=16"

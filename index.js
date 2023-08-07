@@ -1,6 +1,6 @@
-import ws from 'websocket';
+const ws = require('websocket');
 
-export default class YarrboardClient
+class YarrboardClient
 {
 	constructor(hostname="yarrboard.local", username="admin", password="admin", require_login = true)
 	{
@@ -51,15 +51,15 @@ export default class YarrboardClient
 		}
 	}
 
-	onopen(event) {console.log("sdfsd");}
+	onopen(event) {}
 
 	onmessage(message, event) {
 		this.log(JSON.stringify(message));
 	}
 
-	onerror(event) {return true;}
+	onerror(event) {}
 	
-	onclose(event) {return true;}
+	onclose(event) {}
 
 	_createWebsocket()
 	{
@@ -201,3 +201,5 @@ export default class YarrboardClient
 		setTimeout(this._retryConnection.bind(this), my_timeout);
 	}
 }
+
+module.exports = YarrboardClient;

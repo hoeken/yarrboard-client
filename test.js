@@ -1,4 +1,5 @@
-import YarrboardClient from './index.js';
+//import YarrboardClient from './index.js';
+const YarrboardClient = require('./index.js');
 
 let yb = new YarrboardClient();
 
