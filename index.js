@@ -1,76 +1,78 @@
 import ws from 'websocket';
 
-export default function YarrboardClient(hostname="yarrboard.local", username="admin", password="admin", require_login = true)
+export default class YarrboardClient
 {
-	this.config = false;
-	this.closed = false;
+	constructor(hostname="yarrboard.local", username="admin", password="admin", require_login = true)
+	{
+		this.config = false;
+		this.closed = false;
+	
+		this.hostname = hostname;
+		this.username = username;
+		this.password = password;
+		this.require_login = require_login;
+	
+		this.boardname = hostname.split(".")[0];
+	}
 
-	this.hostname = hostname;
-	this.username = username;
-	this.password = password;
-	this.require_login = require_login;
-
-	this.boardname = hostname.split(".")[0];
-}
-
-YarrboardClient.prototype = {
-	start : function ()
+	start()
 	{
 		this._createWebsocket();
-	},
+	}
 
-	log : function (text)
+	log(text)
 	{
-		console.log(text);
-	},
+		console.log(`[${this.hostname}] ${text}`);
+	}
 
-	handleMessage : function (message) {
-		this.log(message);
-	},
-
-	close : function () {
+	close() {
 		this.closed = true;
 		this.ws.close();
-	},
+	}
 
-	doLogin : function (username, password)
+	doLogin(username, password)
 	{
 		this.json({
 			"cmd": "login",
 			"user": username,
 			"pass": password
 		});
-	},
+	}
 
-	json : function (message)
+	json(message)
 	{
 		if (this.ws.readyState == ws.w3cwebsocket.OPEN) {
 			try {
 				//this.log(message.cmd);
 				this.ws.send(JSON.stringify(message));
 			} catch (error) {
-				this.log(`[${this.hostname}] Send error: ${error}`);
+				this.log(`Send error: ${error}`);
 			}
 		}
-	},
+	}
 
-	_createWebsocket : function ()
+	onopen(event) {console.log("sdfsd");}
+
+	onmessage(message, event) {
+		this.log(JSON.stringify(message));
+	}
+
+	onerror(event) {return true;}
+	
+	onclose(event) {return true;}
+
+	_createWebsocket()
 	{
 		this.ws = new ws.w3cwebsocket(`ws://${this.hostname}/ws`);
 		this.ws.onopen = this._onopen.bind(this);
 		this.ws.onerror = this._onerror.bind(this);
 		this.ws.onclose = this._onclose.bind(this);
 		this.ws.onmessage = this._onmessage.bind(this);
-	},
+	}
 
-	_onerror : function ()
+	_onopen(event)
 	{
-		this.log(`[${this.hostname}] Connection error`);
-	},
-
-	_onopen : function ()
-	{
-		this.log(`[${this.hostname}] Connected`);
+		this.log(`Connected`);
 
 		//we are connected, reload
 		this.socket_retries = 0;
@@ -85,40 +87,51 @@ YarrboardClient.prototype = {
 
 		//load our config
 		this.json({"cmd": "get_config"});
-	},
 
-	_onclose : function () {
-		this.log(`[${this.hostname}] Connection closed`);
-	},
+		//our callback
+		this.onopen(event);
+	}
 
-	_onmessage : function (message)
+	_onerror(event)
 	{
-		if (typeof message.data === 'string') {
+		this.log(`Connection error:`);
+
+		this.onerror(event);
+	}
+
+	_onclose(event) {
+		this.log(`Connection closed`);
+
+		this.onclose(event);
+	}
+
+	_onmessage(event)
+	{
+		if (typeof event.data === 'string') {
 			try {
-				let data = JSON.parse(message.data);
+				let data = JSON.parse(event.data);
 
 				this.last_heartbeat = Date.now();
 
 				if (data.status == "error")
-					this.log(`[${this.hostname}] Error: ${data.message}`);
+					this.log(`Error: ${data.message}`);
 				if (data.status == "success")
-					this.log(`[${this.hostname}] Success: ${data.message}`);
+					this.log(`Success: ${data.message}`);
 
 				//this is our heartbeat reply, ignore
 				if (data.pong) 
 					true;
 				else
-					this.handleMessage(data);
+					this.onmessage(data, event);
 			}
 			catch (error)
 			{
-				this.log(`[${this.hostname}] Message error: ${error}`);
-				//this.log(message);
+				this.log(`Message error: ${error}`);
 			}
 		}
-	},
+	}
 
-	_sendHeartbeat : function ()
+	_sendHeartbeat()
 	{
 		//bail if we're done.
 		if (this.closed)
@@ -127,7 +140,7 @@ YarrboardClient.prototype = {
 		//did we not get a heartbeat?
 		if (Date.now() - this.last_heartbeat > 1000 * 2)
 		{
-			this.log(`[${this.hostname}] Missed heartbeat`)
+			this.log(`Missed heartbeat`)
 			this.ws.close();
 			this._retryConnection();
 		}
@@ -140,17 +153,17 @@ YarrboardClient.prototype = {
 		}
 		else if (this.ws.readyState == ws.w3cwebsocket.CLOSING)
 		{
-			this.log(`[${this.hostname}] closing`);
+			this.log(`closing`);
 			this._retryConnection();
 		}
 		else if (this.ws.readyState == ws.w3cwebsocket.CLOSED)
 		{
-			this.log(`[${this.hostname}] closed`);
+			this.log(`closed`);
 			this._retryConnection();
 		}
-	},
+	}
 
-	_retryConnection : function ()
+	_retryConnection()
 	{
 		//bail if we're done.
 		if (this.closed)
@@ -174,7 +187,7 @@ YarrboardClient.prototype = {
 		//keep track of stuff.
 		this.retry_time = 0;
 		this.socket_retries++;
-		this.log(`[${this.hostname}] Reconnecting... ${this.socket_retries}`);
+		this.log(`Reconnecting... ${this.socket_retries}`);
 
 		//reconnect!
 		this._createWebsocket();
@@ -186,5 +199,5 @@ YarrboardClient.prototype = {
 
 		//tee it up.
 		setTimeout(this._retryConnection.bind(this), my_timeout);
-	},
+	}
 }
