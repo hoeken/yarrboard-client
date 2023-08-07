@@ -91,6 +91,42 @@ class YarrboardClient
 		setTimeout(this.printMessageStats.bind(this), 1000);
 	}
 
+	fadeChannel(id, duty, millis)
+	{
+		this.json({
+            "cmd": "fade_channel",
+            "id": id,
+            "duty": duty,
+            "millis": millis
+        });
+	}
+
+	setChannelState(id, state)
+	{
+		this.json({
+			"cmd": "set_channel",
+			"id": id,
+			"state": state
+		});
+	}
+
+	setChannelDuty(id, duty)
+	{
+		this.json({
+			"cmd": "set_channel",
+			"id": id,
+			"duty": duty
+		});
+	}
+
+	toggleChannel(id)
+	{
+		this.json({
+            "cmd": "toggle_channel",
+            "id": id
+        });
+	}
+
 	onopen(event) {}
 
 	onmessage(message, event) {
