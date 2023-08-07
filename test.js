@@ -1,13 +1,9 @@
-import test from 'ava';
-import unicornFun from './index.js';
+import YarrboardClient from './index.js';
 
-test('main', t => {
-	t.throws(() => {
-		unicornFun(123);
-	}, {
-		instanceOf: TypeError,
-		message: 'Expected a string, got number',
-	});
+let yb = new YarrboardClient();
 
-	t.is(unicornFun('unicorns'), 'unicorns & rainbows');
-});
+yb.log("hello");
+yb.handleMessage = function (message) {
+    this.log(message.msg);
+}
+yb.start();

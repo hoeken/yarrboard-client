@@ -1,13 +1,13 @@
 {
-	"name": "unicorn-fun",
-	"version": "0.0.0",
-	"description": "My awesome module",
+	"name": "yarrboard-client",
+	"version": "1.0.0",
+	"description": "Client for Yarrboard",
 	"license": "MIT",
-	"repository": "YOUR-GITHUB-USERNAME/unicorn-fun",
+	"repository": "hoeken/yarrboard-client",
 	"author": {
-		"name": "YOUR NAME",
-		"email": "YOUR EMAIL",
-		"url": "YOUR WEBSITE"
+		"name": "Zach Hoeken",
+		"email": "hoeken@gmail.com",
+		"url": "https://wind.ninja"
 	},
 	"type": "module",
 	"exports": "./index.js",
@@ -15,18 +15,16 @@
 		"node": ">=16"
 	},
 	"scripts": {
-		"test": "xo && ava"
+		"test": "echo \"Error: no test specified\" && exit 1"
 	},
 	"files": [
 		"index.js"
 	],
 	"keywords": [
-		"unicorn",
-		"fun"
+		"hardware",
+		"signalk"
 	],
-	"dependencies": {},
-	"devDependencies": {
-		"ava": "^5.3.0",
-		"xo": "^0.54.2"
+	"dependencies": {
+		"websocket": "^1.0.34"
 	}
 }
