@@ -11,8 +11,9 @@ class YarrboardClient
 		this.username = username;
 		this.password = password;
 		this.require_login = require_login;
-	
 		this.boardname = hostname.split(".")[0];
+
+		this.addMessageId = false;
 
 		this.socket_retries = 0;
 		this.retry_time = 0;
@@ -45,7 +46,7 @@ class YarrboardClient
 
 	login(username, password)
 	{
-		this.json({
+		return this.json({
 			"cmd": "login",
 			"user": username,
 			"pass": password
@@ -54,26 +55,35 @@ class YarrboardClient
 
 	json(message)
 	{
+		//if we're throttled, skip this message
 		if (this.throttleTime > Date.now())
 		{
 			let delta = this.throttleTime - Date.now();
 			this.log(`throttled ${delta}ms`);
-			return;
 		}
+		//only send it if we're not closed.
 		else if (!this.closed)
 		{
 			if (this.ws.readyState == ws.w3cwebsocket.OPEN)
 			{
 				try {
+					//keep track of our messages?
 					this.sentMessageCount++;
+					if (this.addMessageId)
+						message.msgid = this.sentMessageCount;
 
 					//this.log(message.cmd);
 					this.ws.send(JSON.stringify(message));
+
+					//send them back their message if it was a success
+					return message;
 				} catch (error) {
 					this.log(`Send error: ${error}`);
 				}
 			}
 		}
+
+		return false;
 	}
 
 	printMessageStats()
@@ -93,7 +103,7 @@ class YarrboardClient
 
 	fadeChannel(id, duty, millis)
 	{
-		this.json({
+		return this.json({
             "cmd": "fade_channel",
             "id": id,
             "duty": duty,
@@ -103,7 +113,7 @@ class YarrboardClient
 
 	setChannelState(id, state)
 	{
-		this.json({
+		return this.json({
 			"cmd": "set_channel",
 			"id": id,
 			"state": state
@@ -112,7 +122,7 @@ class YarrboardClient
 
 	setChannelDuty(id, duty)
 	{
-		this.json({
+		return this.json({
 			"cmd": "set_channel",
 			"id": id,
 			"duty": duty
@@ -121,7 +131,7 @@ class YarrboardClient
 
 	toggleChannel(id)
 	{
-		this.json({
+		return this.json({
             "cmd": "toggle_channel",
             "id": id
         });
@@ -213,7 +223,6 @@ class YarrboardClient
 					//okay set our time
 					this.throttleTime = Date.now() + delta;
 				}
-			
 
 				//this is our heartbeat reply, ignore
 				if (data.pong) 
