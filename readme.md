@@ -26,5 +26,4 @@ yb.onmessage = function (msg) {
 }
 
 yb.start();
-}
 ```
