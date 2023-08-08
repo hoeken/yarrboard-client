@@ -1,6 +1,6 @@
 # yarrboard-client
 
-> Client for connecting to a Yarrboard
+Client for connecting to a [Yarrboard](https://github.com/hoeken/yarrboard) 
 
 ## Install
 
