@@ -1,43 +1,30 @@
-q**Remove everything from here and above**
+# yarrboard-client
 
----
-
-# unicorn-fun
-
-> My awesome module
+> Client for connecting to a Yarrboard
 
 ## Install
 
 ```sh
-npm install unicorn-fun
+npm install yarrboard-client
 ```
 
 ## Usage
 
 ```js
-import unicornFun from 'unicorn-fun';
+const YarrboardClient = require('yarrboard-client');
 
-unicornFun('unicorns');
-//=> 'unicorns & rainbows'
+yb = new YarrboardClient(options.host, options.user, options.pass, options.login);
+setTimeout(yb.printMessageStats.bind(yb), 1000);    
+
+yb.onopen = function () {
+	yb.json({"cmd":"toggle_channel","id": 0});
+}
+
+yb.onmessage = function (msg) {
+	if (msg.msgid)
+			this.log(msg.msgid);
+}
+
+yb.start();
+}
 ```
-
-## API
-
-### unicornFun(input, options?)
-
-#### input
-
-Type: `string`
-
-Lorem ipsum.
-
-#### options
-
-Type: `object`
-
-##### postfix
-
-Type: `string`\
-Default: `'rainbows'`
-
-Lorem ipsum.
