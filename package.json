@@ -7,7 +7,7 @@
 	"author": {
 		"name": "Zach Hoeken",
 		"email": "hoeken@gmail.com",
-		"url": "https://wind.ninja"
+		"url": "https://github.com/hoeken/yarrboard"
 	},
 	"exports": "./index.js",
 	"engines": {
