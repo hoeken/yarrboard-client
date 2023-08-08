@@ -2,7 +2,7 @@
 	"name": "yarrboard-client",
 	"version": "1.0.1",
 	"description": "Client for Yarrboard",
-	"license": "MIT",
+	"license": "ISC",
 	"repository": "hoeken/yarrboard-client",
 	"author": {
 		"name": "Zach Hoeken",
