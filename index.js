@@ -101,40 +101,51 @@ class YarrboardClient
 		setTimeout(this.printMessageStats.bind(this), 1000);
 	}
 
-	fadeChannel(id, duty, millis)
+	fadePWMChannel(id, duty, millis)
 	{
 		return this.json({
-            "cmd": "fade_channel",
+            "cmd": "fade_pwm_channel",
             "id": id,
             "duty": duty,
             "millis": millis
         });
 	}
 
-	setChannelState(id, state)
+	setPWMChannelState(id, state)
 	{
 		return this.json({
-			"cmd": "set_channel",
+			"cmd": "set_pwm_channel",
 			"id": id,
 			"state": state
 		});
 	}
 
-	setChannelDuty(id, duty)
+	setPWMChannelDuty(id, duty)
 	{
 		return this.json({
-			"cmd": "set_channel",
+			"cmd": "set_pwm_channel",
 			"id": id,
 			"duty": duty
 		});
 	}
 
-	toggleChannel(id)
+	togglePWMChannel(id)
 	{
 		return this.json({
-            "cmd": "toggle_channel",
+            "cmd": "toggle_pwm_channel",
             "id": id
         });
+	}
+
+	setRGB(id, red = 0, green = 0, blue = 0)
+	{
+		return this.json({
+			"cmd": "set_rgb",
+			"id": id,
+			"red": red,
+			"green": green,
+			"blue": blue,
+		});
 	}
 
 	onopen(event) {}
