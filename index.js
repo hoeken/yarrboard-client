@@ -2,7 +2,7 @@ const ws = require('websocket');
 
 class YarrboardClient
 {
-	constructor(hostname="yarrboard.local", username="admin", password="admin", require_login = true)
+	constructor(hostname="yarrboard.local", username="admin", password="admin", require_login = true, use_ssl = false)
 	{
 		this.config = false;
 		this.closed = false;
@@ -12,6 +12,7 @@ class YarrboardClient
 		this.password = password;
 		this.require_login = require_login;
 		this.boardname = hostname.split(".")[0];
+		this.use_ssl = use_ssl;
 
 		this.addMessageId = false;
 
@@ -19,6 +20,7 @@ class YarrboardClient
 		this.retry_time = 0;
 		this.last_heartbeat = 0;
 		this.heartbeat_rate = 1000;
+		this.ota_started = false;
 
 		this.receivedMessageCount = 0;
 		this.sentMessageCount = 0;
@@ -39,7 +41,8 @@ class YarrboardClient
 		console.log(`[${this.hostname}] ${text}`);
 	}
 
-	close() {
+	close()
+	{
 		this.closed = true;
 		this.ws.close();
 	}
@@ -60,6 +63,11 @@ class YarrboardClient
 		{
 			let delta = this.throttleTime - Date.now();
 			this.log(`throttled ${delta}ms`);
+		}
+		//OTA is blocking... dont send messages
+		else if (this.ota_started)
+		{
+			this.log(`skipping due to ota`);
 		}
 		//only send it if we're not closed.
 		else if (!this.closed)
@@ -160,7 +168,13 @@ class YarrboardClient
 
 	_createWebsocket()
 	{
-		this.ws = new ws.w3cwebsocket(`ws://${this.hostname}/ws`);
+		//encrypt?
+		var protocol = "ws://";
+		if (this.use_ssl)
+			protocol = "wss://";
+
+		//okay, connect
+		this.ws = new ws.w3cwebsocket(`${protocol}${this.hostname}/ws`);
 		this.ws.onopen = this._onopen.bind(this);
 		this.ws.onerror = this._onerror.bind(this);
 		this.ws.onclose = this._onclose.bind(this);
@@ -176,12 +190,14 @@ class YarrboardClient
 		this.socket_retries = 0;
 		this.retry_time = 0;
 		this.last_heartbeat = Date.now();
+		this.ota_started = false;
 
 		//our connection watcher
 		setTimeout(this._sendHeartbeat.bind(this), this.heartbeat_rate);
 
+		//handle login
 		if (this.require_login)
-			this.login("admin", "admin");
+			this.login(this.username, this.password);
 
 		//load our config
 		this.json({"cmd": "get_config"});
@@ -233,6 +249,19 @@ class YarrboardClient
 		
 					//okay set our time
 					this.throttleTime = Date.now() + delta;
+				}
+
+				//are we doing an OTA?
+				if (data.msg == "ota_progress")
+				{
+					this.ota_started = true;
+
+					//restart our socket when finished
+					if (data.progress == 100)
+					{
+						this.close();
+						this.start();
+					}
 				}
 
 				//this is our heartbeat reply, ignore
