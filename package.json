@@ -3,7 +3,10 @@
 	"version": "1.2.0",
 	"description": "Client for Yarrboard",
 	"license": "ISC",
-	"repository": "hoeken/yarrboard-client",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/hoeken/yarrboard-client.git"
+	},
 	"author": {
 		"name": "Zach Hoeken",
 		"email": "hoeken@gmail.com",
