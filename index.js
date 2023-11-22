@@ -14,7 +14,9 @@ class YarrboardClient
 		this.boardname = hostname.split(".")[0];
 		this.use_ssl = use_ssl;
 
-		this.addMessageId = false;
+		this.addMessageId = true;
+		this.lastMessageId = 0;
+		this.messageQueue = [];
 
 		this.socket_retries = 0;
 		this.retry_time = 0;
@@ -28,12 +30,12 @@ class YarrboardClient
 		this.lastSentMessageCount = 0;
 		this.lastMessageUpdateTime = Date.now();
 
-		this.throttleTime = Date.now();
 	}
 
 	start()
 	{
 		this._createWebsocket();
+		this._sendQueue();
 	}
 
 	log(text)
@@ -56,96 +58,121 @@ class YarrboardClient
 		});
 	}
 
-	json(message)
+	_sendQueue()
 	{
-		//if we're throttled, skip this message
-		if (this.throttleTime > Date.now())
+		//do we have messages?
+		while (this.messageQueue.length)
 		{
-			let delta = this.throttleTime - Date.now();
-			this.log(`throttled ${delta}ms`);
-		}
-		//OTA is blocking... dont send messages
-		else if (this.ota_started)
-		{
-			this.log(`skipping due to ota`);
-		}
-		//only send it if we're not closed.
-		else if (!this.closed)
-		{
-			if (this.ws.readyState == ws.w3cwebsocket.OPEN)
+			//only if we are connected
+			if (!this.closed && this.ws.readyState == ws.w3cwebsocket.OPEN)
 			{
-				try {
-					//keep track of our messages?
-					this.sentMessageCount++;
-					if (this.addMessageId)
-						message.msgid = this.sentMessageCount;
+				//OTA is blocking... dont send messages
+				if (this.ota_started)
+				{
+					this.log(`skipping due to ota`);
+					break;
+				}
+				//are we waiting for a response?
+				else if(this.addMessageId && this.lastMessageId)
+				{
+					//this.log(`waiting on message ${this.lastMessageId}`);
+					break;
+				}
+				else
+				{
+					try 
+					{
+						//FIFO
+						let message = this.messageQueue.shift();
 
-					//this.log(message.cmd);
-					this.ws.send(JSON.stringify(message));
+						//keep track of our messages?
+						this.sentMessageCount++;
+						if (this.addMessageId)
+						{
+							message.msgid = this.sentMessageCount;
+							this.lastMessageId = message.msgid;
+						}
 
-					//send them back their message if it was a success
-					return message;
-				} catch (error) {
-					this.log(`Send error: ${error}`);
+						//finally send it off.
+						this.ws.send(JSON.stringify(message));
+					} catch (error) {
+						this.log(`Send error: ${error}`);
+					}
 				}
 			}
 		}
 
-		return false;
+		//keep calling the sender!
+		setTimeout(this._sendQueue.bind(this), 1);
+	}
+
+	json(message, queue = true)
+	{
+		if (queue || this.messageQueue.length == 0)
+		{
+			this.messageQueue.push(message);
+		}
+		else
+		{
+			//this.log(this.messageQueue.length);			
+		}
 	}
 
 	printMessageStats()
 	{
-		let delta = Date.now() - this.lastMessageUpdateTime;
-		let rmps = Math.round(((this.receivedMessageCount - this.lastReceivedMessageCount) / delta) * 1000);
-		let smps = Math.round(((this.sentMessageCount - this.lastSentMessageCount) / delta) * 1000);
-
-		this.log(`Recd m/s: ${rmps} | Sent m/s: ${smps} | Total Received/Sent: ${this.receivedMessageCount} / ${this.sentMessageCount}`);
-
-		this.lastMessageUpdateTime = Date.now();
-		this.lastSentMessageCount = this.sentMessageCount;
-		this.lastReceivedMessageCount = this.receivedMessageCount;
+		if (!this.closed)
+		{
+			let delta = Date.now() - this.lastMessageUpdateTime;
+			let rmps = Math.round(((this.receivedMessageCount - this.lastReceivedMessageCount) / delta) * 1000);
+			let smps = Math.round(((this.sentMessageCount - this.lastSentMessageCount) / delta) * 1000);
+	
+			this.log(`Recd m/s: ${rmps} | Sent m/s: ${smps} | Total Received/Sent: ${this.receivedMessageCount} / ${this.sentMessageCount}`);
+	
+			this.lastMessageUpdateTime = Date.now();
+			this.lastSentMessageCount = this.sentMessageCount;
+			this.lastReceivedMessageCount = this.receivedMessageCount;	
+		}
 
 		setTimeout(this.printMessageStats.bind(this), 1000);
 	}
 
-	fadePWMChannel(id, duty, millis)
+	fadePWMChannel(id, duty, millis, queue = true)
 	{
 		return this.json({
             "cmd": "fade_pwm_channel",
             "id": id,
             "duty": duty,
             "millis": millis
-        });
+        }, queue);
 	}
 
-	setPWMChannelState(id, state)
+	setPWMChannelState(id, state, queue = true)
 	{
 		return this.json({
 			"cmd": "set_pwm_channel",
 			"id": id,
 			"state": state
-		});
+		}, queue);
 	}
 
-	setPWMChannelDuty(id, duty)
+	setPWMChannelDuty(id, duty, queue = true)
 	{
 		return this.json({
 			"cmd": "set_pwm_channel",
 			"id": id,
 			"duty": duty
-		});
+		}, queue);
 	}
 
-	togglePWMChannel(id)
+	togglePWMChannel(id, queue = true)
 	{
 		return this.json({
             "cmd": "toggle_pwm_channel",
             "id": id
-        });
+        }, queue);
 	}
 
-	setRGB(id, red = 0, green = 0, blue = 0)
+	setRGB(id, red = 0, green = 0, blue = 0, queue = true)
 	{
 		return this.json({
 			"cmd": "set_rgb",
@@ -153,7 +180,7 @@ class YarrboardClient
 			"red": red,
 			"green": green,
 			"blue": blue,
-		});
+		}, queue);
 	}
 
 	onopen(event) {}
@@ -229,27 +256,14 @@ class YarrboardClient
 
 				this.last_heartbeat = Date.now();
 
+				//mark the message as received
+				if (this.addMessageId && data.msgid == this.lastMessageId)
+					this.lastMessageId = 0;
+
 				if (data.status == "error")
 					this.log(`Error: ${data.message}`);
 				if (data.status == "success")
 					this.log(`Success: ${data.message}`);
-
-				if (data.status == "error" && data.message == "Websocket busy, throttle connection.")
-				{
-					//okay are we throttled already?
-					let delta = this.throttleTime - Date.now();
-					if (delta > 50)
-						delta = delta * 1.5;
-					else
-						delta = 50;
-		
-					//maximum throttle 5s
-					delta = Math.min(5000, delta);
-					this.log(`Throttling: ${delta}ms`);
-		
-					//okay set our time
-					this.throttleTime = Date.now() + delta;
-				}
 
 				//are we doing an OTA?
 				if (data.msg == "ota_progress")
