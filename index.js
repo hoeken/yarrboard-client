@@ -16,6 +16,7 @@ class YarrboardClient
 
 		this.addMessageId = true;
 		this.lastMessageId = 0;
+		this.lastMessageTime = 0;
 		this.messageQueue = [];
 
 		this.socket_retries = 0;
@@ -60,44 +61,47 @@ class YarrboardClient
 
 	_sendQueue()
 	{
-		//do we have messages?
-		while (this.messageQueue.length)
+		//are we ready to party?
+		if (this.messageQueue.length && !this.closed && this.ws.readyState == ws.w3cwebsocket.OPEN)
 		{
-			//only if we are connected
-			if (!this.closed && this.ws.readyState == ws.w3cwebsocket.OPEN)
+			//OTA is blocking... dont send messages
+			if (this.ota_started)
 			{
-				//OTA is blocking... dont send messages
-				if (this.ota_started)
+				this.log(`skipping due to ota`);
+			}
+			//are we waiting for a response?
+			else if(this.addMessageId && this.lastMessageId)
+			{
+				//check for timeouts
+				if (Date.now() - this.messageTimeout > this.lastMessageTime)
 				{
-					this.log(`skipping due to ota`);
-					break;
+					this.log(`message ${this.lastMessageId} timed out`);
+					this.lastMessageId = 0;
+					this.lastMessageTime = 0;
 				}
-				//are we waiting for a response?
-				else if(this.addMessageId && this.lastMessageId)
+
+				//this.log(`waiting on message ${this.lastMessageId}`);
+			}
+			else
+			{
+				try 
 				{
-					//this.log(`waiting on message ${this.lastMessageId}`);
-					break;
-				}
-				else
-				{
-					try 
+					//FIFO
+					let message = this.messageQueue.shift();
+
+					//keep track of our messages?
+					this.sentMessageCount++;
+					if (this.addMessageId)
 					{
-						//FIFO
-						let message = this.messageQueue.shift();
-
-						//keep track of our messages?
-						this.sentMessageCount++;
-						if (this.addMessageId)
-						{
-							message.msgid = this.sentMessageCount;
-							this.lastMessageId = message.msgid;
-						}
-
-						//finally send it off.
-						this.ws.send(JSON.stringify(message));
-					} catch (error) {
-						this.log(`Send error: ${error}`);
+						message.msgid = this.sentMessageCount;
+						this.lastMessageId = message.msgid;
+						this.lastMessageTime = Date.now();
 					}
+
+					//finally send it off.
+					this.ws.send(JSON.stringify(message));
+				} catch (error) {
+					this.log(`Send error: ${error}`);
 				}
 			}
 		}
@@ -120,7 +124,7 @@ class YarrboardClient
 
 	printMessageStats()
 	{
-		if (!this.closed)
+		if (!this.closed || Date.now() - this.last_heartbeat > this.heartbeat_rate * 3)
 		{
 			let delta = Date.now() - this.lastMessageUpdateTime;
 			let rmps = Math.round(((this.receivedMessageCount - this.lastReceivedMessageCount) / delta) * 1000);
@@ -186,7 +190,7 @@ class YarrboardClient
 	onopen(event) {}
 
 	onmessage(message, event) {
-		this.log(JSON.stringify(message));
+		//this.log(JSON.stringify(message));
 	}
 
 	onerror(event) {}
@@ -218,6 +222,9 @@ class YarrboardClient
 		this.retry_time = 0;
 		this.last_heartbeat = Date.now();
 		this.ota_started = false;
+		this.lastMessageId = 0;
+		this.lastMessageTime = 0;
+		this.messageQueue = [];
 
 		//our connection watcher
 		setTimeout(this._sendHeartbeat.bind(this), this.heartbeat_rate);
@@ -227,7 +234,7 @@ class YarrboardClient
 			this.login(this.username, this.password);
 
 		//load our config
-		this.json({"cmd": "get_config"});
+		//this.json({"cmd": "get_config"});
 
 		//our callback
 		this.onopen(event);
@@ -295,7 +302,9 @@ class YarrboardClient
 	{
 		//bail if we're done.
 		if (this.closed)
+		{
 			return;
+		}
 
 		//did we not get a heartbeat?
 		if (Date.now() - this.last_heartbeat > this.heartbeat_rate * 3)
@@ -308,7 +317,7 @@ class YarrboardClient
 		//only send it if we're already open.
 		if (this.ws.readyState == ws.w3cwebsocket.OPEN)
 		{
-			this.json({"cmd": "ping"});
+			this.json({"cmd": "ping"}, false);
 			setTimeout(this._sendHeartbeat.bind(this), this.heartbeat_rate);
 		}
 		else if (this.ws.readyState == ws.w3cwebsocket.CLOSING)
@@ -318,7 +327,6 @@ class YarrboardClient
 		}
 		else if (this.ws.readyState == ws.w3cwebsocket.CLOSED)
 		{
-			this.log(`closed`);
 			this._retryConnection();
 		}
 	}
@@ -327,15 +335,22 @@ class YarrboardClient
 	{
 		//bail if we're done.
 		if (this.closed)
+		{
+			console.log(`Connection closed`);
 			return;
+		}
 
 		//bail if its good to go
 		if (this.ws.readyState == ws.w3cwebsocket.OPEN)
+		{
 			return;
+		}
 
 		//keep watching if we are connecting
 		if (this.ws.readyState == ws.w3cwebsocket.CONNECTING)
 		{
+			console.log(`waiting for connection`);
+
 			this.retry_time++;
 
 			//tee it up.
@@ -347,7 +362,6 @@ class YarrboardClient
 		//keep track of stuff.
 		this.retry_time = 0;
 		this.socket_retries++;
-		this.log(`Reconnecting... ${this.socket_retries}`);
 
 		//reconnect!
 		this._createWebsocket();
@@ -358,6 +372,7 @@ class YarrboardClient
 		my_timeout = Math.min(my_timeout, 60000);
 
 		//tee it up.
+		this.log(`Reconnecting in ${my_timeout}ms. Try #${this.socket_retries}`);
 		setTimeout(this._retryConnection.bind(this), my_timeout);
 	}
 }
