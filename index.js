@@ -1,4 +1,5 @@
 const ws = require('websocket');
+const packageJSON = require('./package.json');
 
 class YarrboardClient
 {
@@ -125,7 +126,7 @@ class YarrboardClient
 
 	printMessageStats()
 	{
-		if (!this.closed || Date.now() - this.last_heartbeat > this.heartbeat_rate * 3)
+		if (this.ws.readyState == ws.w3cwebsocket.OPEN && (!this.closed || Date.now() - this.last_heartbeat > this.heartbeat_rate * 3))
 		{
 			let delta = Date.now() - this.lastMessageUpdateTime;
 			let rmps = Math.round(((this.receivedMessageCount - this.lastReceivedMessageCount) / delta) * 1000);
@@ -377,5 +378,6 @@ class YarrboardClient
 		setTimeout(this._retryConnection.bind(this), my_timeout);
 	}
 }
+YarrboardClient.version = packageJSON.version;
 
 module.exports = YarrboardClient;
