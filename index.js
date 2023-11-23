@@ -205,9 +205,13 @@ class YarrboardClient
 		var protocol = "ws://";
 		if (this.use_ssl)
 			protocol = "wss://";
+    
+    //where to, boss?
+    let uri = `${protocol}${this.hostname}/ws`;
+    this.log(`Opening websocket to: ${uri}`);
 
 		//okay, connect
-		this.ws = new ws.w3cwebsocket(`${protocol}${this.hostname}/ws`);
+		this.ws = new ws.w3cwebsocket(uri);
 		this.ws.onopen = this._onopen.bind(this);
 		this.ws.onerror = this._onerror.bind(this);
 		this.ws.onclose = this._onclose.bind(this);
