@@ -18,6 +18,7 @@ class YarrboardClient
 		this.lastMessageId = 0;
 		this.lastMessageTime = 0;
 		this.messageQueue = [];
+		this.messageTimeout = 5000;
 
 		this.socket_retries = 0;
 		this.retry_time = 0;
