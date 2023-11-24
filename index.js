@@ -49,6 +49,10 @@ class YarrboardClient
 	close()
 	{
 		this.closed = true;
+    this.ws.onopen = {};
+    this.ws.onclose = {};
+    this.ws.onerror = {};
+    this.ws.onmessage = {};
 		this.ws.close();
 	}
 
@@ -345,17 +349,28 @@ class YarrboardClient
 			console.log(`Connection closed`);
 			return;
 		}
-
-		//bail if its good to go
-		if (this.ws.readyState == ws.w3cwebsocket.OPEN)
+    //bail if its good to go
+		else if (this.ws.readyState == ws.w3cwebsocket.OPEN)
 		{
 			return;
 		}
-
 		//keep watching if we are connecting
-		if (this.ws.readyState == ws.w3cwebsocket.CONNECTING)
+		else if (this.ws.readyState == ws.w3cwebsocket.CONNECTING)
 		{
-			console.log(`waiting for connection`);
+			console.log(`waiting for connection to open`);
+			this.retry_count++;
+
+			//give it a little bit.
+      if (this.retry_count < 5)
+      {
+  			setTimeout(this._retryConnection.bind(this), 1000);
+  			return;        
+      }
+		}
+		//keep watching if we are closing
+		else if (this.ws.readyState == ws.w3cwebsocket.CLOSING)
+		{
+			console.log(`waiting for connection to close`);
 			this.retry_count++;
 
 			//give it a little bit.
@@ -366,8 +381,13 @@ class YarrboardClient
       }
 		}
 
+    //try everything we can to stop the websocket.
+    this.ws.onopen = {};
+    this.ws.onclose = {};
+    this.ws.onerror = {};
+    this.ws.onmessage = {};
     this.ws.close();
-    delete this
+    delete this.ws;
 
 		//keep track of stuff.
 		this.retry_count = 0;
