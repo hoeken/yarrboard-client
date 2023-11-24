@@ -261,6 +261,9 @@ class YarrboardClient
 		this.log(`Connection closed`);
 
 		this.onclose(event);
+
+		delete this.ws;
+		this._createWebsocket();
 	}
 
 	_onmessage(event)
