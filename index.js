@@ -237,7 +237,7 @@ class YarrboardClient
 		this.messageQueue = [];
 
 		//our connection watcher
-		setTimeout(this._sendHeartbeat.bind(this), this.heartbeat_rate);
+		//setTimeout(this._sendHeartbeat.bind(this), this.heartbeat_rate);
 
 		//handle login
 		if (this.require_login)
@@ -402,7 +402,7 @@ class YarrboardClient
 		my_timeout = Math.min(my_timeout, 60000);
 
 		//tee it up.
-		this.log(`Reconnecting in ${my_timeout}ms. Try #${this.socket_retries}`);
+		this.log(`Reconnecting, try #${this.socket_retries}. Next try in ${my_timeout}ms.`);
 		setTimeout(this._retryConnection.bind(this), my_timeout);
 	}
 }
