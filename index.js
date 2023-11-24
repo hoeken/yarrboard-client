@@ -22,7 +22,7 @@ class YarrboardClient
 		this.messageTimeout = 5000;
 
 		this.socket_retries = 0;
-		this.retry_time = 0;
+		this.retry_count = 0;
 		this.last_heartbeat = 0;
 		this.heartbeat_rate = 1000;
 		this.ota_started = false;
@@ -225,7 +225,7 @@ class YarrboardClient
 		//we are connected, reload
 		this.closed = false;
 		this.socket_retries = 0;
-		this.retry_time = 0;
+		this.retry_count = 0;
 		this.last_heartbeat = Date.now();
 		this.ota_started = false;
 		this.lastMessageId = 0;
@@ -356,17 +356,21 @@ class YarrboardClient
 		if (this.ws.readyState == ws.w3cwebsocket.CONNECTING)
 		{
 			console.log(`waiting for connection`);
+			this.retry_count++;
 
-			this.retry_time++;
-
-			//tee it up.
-			setTimeout(this._retryConnection.bind(this), 1000);
-
-			return;
+			//give it a little bit.
+      if (this.retry_count < 5)
+      {
+  			setTimeout(this._retryConnection.bind(this), 1000);
+  			return;        
+      }
 		}
 
+    this.ws.close();
+    delete this
+
 		//keep track of stuff.
-		this.retry_time = 0;
+		this.retry_count = 0;
 		this.socket_retries++;
 
 		//reconnect!
