@@ -15,6 +15,8 @@ class YarrboardClient
 		this.boardname = hostname.split(".")[0];
 		this.use_ssl = use_ssl;
 
+		this.update_interval = 1000;
+
 		this.addMessageId = true;
 		this.lastMessageId = 0;
 		this.lastMessageTime = 0;
@@ -41,6 +43,23 @@ class YarrboardClient
 		this._sendQueue();
 	}
 
+	startUpdatePoller(interval = 1000)
+	{
+		this.update_interval = interval;
+		setTimeout(this._updatePoller.bind(this), 1);
+	}
+
+	_updatePoller()
+	{
+		if (!this.closed)
+		{
+			if (this.ws.readyState == ws.w3cwebsocket.OPEN)
+				this.getUpdate();
+
+			setTimeout(this._updatePoller.bind(this), this.update_interval);	
+		}
+	}
+
 	log(text)
 	{
 		console.log(`[${this.hostname}] ${text}`);
@@ -49,10 +68,10 @@ class YarrboardClient
 	close()
 	{
 		this.closed = true;
-    this.ws.onopen = {};
-    this.ws.onclose = {};
-    this.ws.onerror = {};
-    this.ws.onmessage = {};
+		this.ws.onopen = {};
+		this.ws.onclose = {};
+		this.ws.onerror = {};
+		this.ws.onmessage = {};
 		this.ws.close();
 	}
 
@@ -144,6 +163,21 @@ class YarrboardClient
 		}
 
 		setTimeout(this.printMessageStats.bind(this), 1000);
+	}
+
+	getConfig()
+	{
+		return this.json({"cmd":"get_config"});
+	}
+
+	getUpdate()
+	{
+		return this.json({"cmd":"get_update"});
+	}
+
+	getStats()
+	{
+		return this.json({"cmd":"get_stats"});
 	}
 
 	fadePWMChannel(id, duty, millis, queue = true)
