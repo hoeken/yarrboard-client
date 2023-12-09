@@ -46,16 +46,14 @@ class YarrboardClient
 	startUpdatePoller(interval = 1000)
 	{
 		this.update_interval = interval;
-		setTimeout(this._updatePoller.bind(this), 1);
+		this._updatePoller();
 	}
 
 	_updatePoller()
 	{
 		if (!this.closed)
 		{
-			if (this.ws.readyState == ws.w3cwebsocket.OPEN)
-				this.getUpdate();
-
+		  this.getUpdate();
 			setTimeout(this._updatePoller.bind(this), this.update_interval);	
 		}
 	}
@@ -294,6 +292,7 @@ class YarrboardClient
 	_onclose(event) {
 		this.log(`Connection closed`);
 
+    this.closed = true;
 		this.onclose(event);
 
 		delete this.ws;
