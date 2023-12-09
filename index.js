@@ -17,7 +17,7 @@ class YarrboardClient
 
 		this.update_interval = 1000;
 
-		this.addMessageId = true;
+		this.addMessageId = false;
 		this.lastMessageId = 0;
 		this.lastMessageTime = 0;
 		this.messageQueue = [];
