@@ -13,6 +13,7 @@ class YarrboardClient {
 		this.boardname = hostname.split(".")[0];
 		this.use_ssl = use_ssl;
 
+		//todo: remove this
 		this.update_interval = 1000;
 
 		this.addMessageId = false;
@@ -21,10 +22,6 @@ class YarrboardClient {
 		this.messageQueue = [];
 		this.messageTimeout = 5000;
 
-		this.socket_retries = 0;
-		this.retry_count = 0;
-		this.last_heartbeat = 0;
-		this.heartbeat_rate = 1000;
 		this.ota_started = false;
 
 		this.receivedMessageCount = 0;
@@ -41,12 +38,12 @@ class YarrboardClient {
 	}
 
 	isOpen() {
-		return !this.closed && this.ws.readyState == WebSocket.OPEN;
+		return !this.closed && this.ws.readyState == ws.w3cwebsocket.OPEN;
 	}
 
 	status() {
 		if (this.ws) {
-			if (this.ws.readyState == WebSocket.CONNECTING)
+			if (this.ws.readyState == ws.w3cwebsocket.CONNECTING)
 				return "CONNECTING";
 			else if (this.isOpen())
 				return "CONNECTED";
@@ -58,18 +55,6 @@ class YarrboardClient {
 		}
 		else
 			return "CONNECTING";
-	}
-
-	startUpdatePoller(interval = 1000) {
-		this.update_interval = interval;
-		this._updatePoller();
-	}
-
-	_updatePoller() {
-		if (!this.closed) {
-			this.getUpdate();
-			setTimeout(this._updatePoller.bind(this), this.update_interval);
-		}
 	}
 
 	log(text) {
@@ -86,16 +71,20 @@ class YarrboardClient {
 	}
 
 	login(username, password) {
-		return this.json({
+		return this.send({
 			"cmd": "login",
 			"user": username,
 			"pass": password
-		});
+		}, true);
+	}
+
+	logout() {
+		return this.send({"cmd": "logout"}, true);
 	}
 
 	_sendQueue() {
 		//are we ready to party?
-		if (this.messageQueue.length && !this.closed && this.ws.readyState == ws.w3cwebsocket.OPEN) {
+		if (this.messageQueue.length && this.isOpen()) {
 			//OTA is blocking... dont send messages
 			if (this.ota_started) {
 				this.log(`skipping due to ota`);
@@ -136,7 +125,7 @@ class YarrboardClient {
 		setTimeout(this._sendQueue.bind(this), 1);
 	}
 
-	json(message, requireConfirmation = true) {
+	send(message, requireConfirmation = true) {
 		if (requireConfirmation || this.messageQueue.length == 0) {
 			this.messageQueue.push(message);
 		}
@@ -146,7 +135,7 @@ class YarrboardClient {
 	}
 
 	printMessageStats() {
-		if (this.ws.readyState == ws.w3cwebsocket.OPEN && (!this.closed || Date.now() - this.last_heartbeat > this.heartbeat_rate * 3)) {
+		if (this.isOpen()) {
 			let delta = Date.now() - this.lastMessageUpdateTime;
 			let rmps = Math.round(((this.receivedMessageCount - this.lastReceivedMessageCount) / delta) * 1000);
 			let smps = Math.round(((this.sentMessageCount - this.lastSentMessageCount) / delta) * 1000);
@@ -161,58 +150,82 @@ class YarrboardClient {
 		setTimeout(this.printMessageStats.bind(this), 1000);
 	}
 
-	getConfig() {
-		return this.json({ "cmd": "get_config" });
+	sayHello(requireConfirmation = true) {
+		return this.send({ "cmd": "hello" }, requireConfirmation);
 	}
 
-	getUpdate() {
-		return this.json({ "cmd": "get_update" });
+	getConfig(requireConfirmation = true) {
+		return this.send({ "cmd": "get_config" }, requireConfirmation);
 	}
 
-	getStats() {
-		return this.json({ "cmd": "get_stats" });
+	getNetworkConfig(requireConfirmation = true) {
+		return this.send({ "cmd": "get_network_config" }, requireConfirmation);
 	}
 
-	fadePWMChannel(id, duty, millis, queue = true) {
-		return this.json({
+	getAppConfig(requireConfirmation = true) {
+		return this.send({ "cmd": "get_app_config" }, requireConfirmation);
+	}
+
+	getUpdate(requireConfirmation = false) {
+		return this.send({ "cmd": "get_update" }, requireConfirmation);
+	}
+
+	getStats(requireConfirmation = false) {
+		return this.send({ "cmd": "get_stats" }, requireConfirmation);
+	}
+
+	restart() {
+		return this.send({"cmd": "restart"}, true);
+	}
+
+	factoryReset() {
+		return this.send({"cmd": "factory_reset"}, true);
+	}
+
+	startOTA() {
+		client.send({"cmd": "ota_start"}, true);
+	}
+
+	fadePWMChannel(id, duty, millis, requireConfirmation = true) {
+		return this.send({
 			"cmd": "fade_pwm_channel",
 			"id": id,
 			"duty": duty,
 			"millis": millis
-		}, queue);
+		}, requireConfirmation);
 	}
 
-	setPWMChannelState(id, state, queue = true) {
-		return this.json({
+	setPWMChannelState(id, state, requireConfirmation = true) {
+		return this.send({
 			"cmd": "set_pwm_channel",
 			"id": id,
 			"state": state
-		}, queue);
+		}, requireConfirmation);
 	}
 
-	setPWMChannelDuty(id, duty, queue = true) {
-		return this.json({
+	setPWMChannelDuty(id, duty, requireConfirmation = true) {
+		return this.send({
 			"cmd": "set_pwm_channel",
 			"id": id,
 			"duty": duty
-		}, queue);
+		}, requireConfirmation);
 	}
 
-	togglePWMChannel(id, queue = true) {
-		return this.json({
+	togglePWMChannel(id, requireConfirmation = true) {
+		return this.send({
 			"cmd": "toggle_pwm_channel",
 			"id": id
-		}, queue);
+		}, requireConfirmation);
 	}
 
-	setRGB(id, red = 0, green = 0, blue = 0, queue = true) {
-		return this.json({
+	setRGB(id, red = 0, green = 0, blue = 0, requireConfirmation = false) {
+		return this.send({
 			"cmd": "set_rgb",
 			"id": id,
 			"red": red,
 			"green": green,
 			"blue": blue,
-		}, queue);
+		}, requireConfirmation);
 	}
 
 	onopen(event) { }
@@ -248,36 +261,27 @@ class YarrboardClient {
 
 		//we are connected, reload
 		this.closed = false;
-		this.socket_retries = 0;
-		this.retry_count = 0;
-		this.last_heartbeat = Date.now();
 		this.ota_started = false;
 		this.lastMessageId = 0;
 		this.lastMessageTime = 0;
 		this.messageQueue = [];
 
-		//our connection watcher
-		//setTimeout(this._sendHeartbeat.bind(this), this.heartbeat_rate);
-
 		//handle login
 		if (this.require_login)
 			this.login(this.username, this.password);
-
-		//load our config
-		//this.json({"cmd": "get_config"});
 
 		//our callback
 		this.onopen(event);
 	}
 
 	_onerror(event) {
-		this.log(`Connection error:`);
+		this.log(`Connection error: code=${event.code} reason=${event.reason}`);
 
 		this.onerror(event);
 	}
 
 	_onclose(event) {
-		this.log(`Connection closed`);
+		this.log(`Connection closed: code=${event.code} reason=${event.reason}`);
 
 		this.closed = true;
 		this.onclose(event);
@@ -292,8 +296,6 @@ class YarrboardClient {
 		if (typeof event.data === 'string') {
 			try {
 				let data = JSON.parse(event.data);
-
-				this.last_heartbeat = Date.now();
 
 				//mark the message as received
 				if (this.addMessageId && data.msgid == this.lastMessageId)
@@ -327,90 +329,90 @@ class YarrboardClient {
 		}
 	}
 
-	_sendHeartbeat() {
-		//bail if we're done.
-		if (this.closed) {
-			return;
-		}
+	// _sendHeartbeat() {
+	// 	//bail if we're done.
+	// 	if (this.closed) {
+	// 		return;
+	// 	}
 
-		//did we not get a heartbeat?
-		if (Date.now() - this.last_heartbeat > this.heartbeat_rate * 3) {
-			this.log(`Missed heartbeat`)
-			this.ws.close();
-			this._retryConnection();
-		}
+	// 	//did we not get a heartbeat?
+	// 	if (Date.now() - this.last_heartbeat > this.heartbeat_rate * 3) {
+	// 		this.log(`Missed heartbeat`)
+	// 		this.ws.close();
+	// 		this._retryConnection();
+	// 	}
 
-		//only send it if we're already open.
-		if (this.ws.readyState == ws.w3cwebsocket.OPEN) {
-			this.json({ "cmd": "ping" }, false);
-			setTimeout(this._sendHeartbeat.bind(this), this.heartbeat_rate);
-		}
-		else if (this.ws.readyState == ws.w3cwebsocket.CLOSING) {
-			this.log(`closing`);
-			this._retryConnection();
-		}
-		else if (this.ws.readyState == ws.w3cwebsocket.CLOSED) {
-			this._retryConnection();
-		}
-	}
+	// 	//only send it if we're already open.
+	// 	if (this.ws.readyState == ws.w3cwebsocket.OPEN) {
+	// 		this.send({ "cmd": "ping" }, false);
+	// 		setTimeout(this._sendHeartbeat.bind(this), this.heartbeat_rate);
+	// 	}
+	// 	else if (this.ws.readyState == ws.w3cwebsocket.CLOSING) {
+	// 		this.log(`closing`);
+	// 		this._retryConnection();
+	// 	}
+	// 	else if (this.ws.readyState == ws.w3cwebsocket.CLOSED) {
+	// 		this._retryConnection();
+	// 	}
+	// }
 
-	_retryConnection() {
-		//bail if we're done.
-		if (this.closed) {
-			console.log(`Connection closed`);
-			return;
-		}
-		//bail if its good to go
-		else if (this.ws.readyState == ws.w3cwebsocket.OPEN) {
-			return;
-		}
-		//keep watching if we are connecting
-		else if (this.ws.readyState == ws.w3cwebsocket.CONNECTING) {
-			console.log(`waiting for connection to open`);
-			this.retry_count++;
+	// _retryConnection() {
+	// 	//bail if we're done.
+	// 	if (this.closed) {
+	// 		console.log(`Connection closed`);
+	// 		return;
+	// 	}
+	// 	//bail if its good to go
+	// 	else if (this.ws.readyState == ws.w3cwebsocket.OPEN) {
+	// 		return;
+	// 	}
+	// 	//keep watching if we are connecting
+	// 	else if (this.ws.readyState == ws.w3cwebsocket.CONNECTING) {
+	// 		console.log(`waiting for connection to open`);
+	// 		this.retry_count++;
 
-			//give it a little bit.
-			if (this.retry_count < 5) {
-				setTimeout(this._retryConnection.bind(this), 1000);
-				return;
-			}
-		}
-		//keep watching if we are closing
-		else if (this.ws.readyState == ws.w3cwebsocket.CLOSING) {
-			console.log(`waiting for connection to close`);
-			this.retry_count++;
+	// 		//give it a little bit.
+	// 		if (this.retry_count < 5) {
+	// 			setTimeout(this._retryConnection.bind(this), 1000);
+	// 			return;
+	// 		}
+	// 	}
+	// 	//keep watching if we are closing
+	// 	else if (this.ws.readyState == ws.w3cwebsocket.CLOSING) {
+	// 		console.log(`waiting for connection to close`);
+	// 		this.retry_count++;
 
-			//give it a little bit.
-			if (this.retry_count < 5) {
-				setTimeout(this._retryConnection.bind(this), 1000);
-				return;
-			}
-		}
+	// 		//give it a little bit.
+	// 		if (this.retry_count < 5) {
+	// 			setTimeout(this._retryConnection.bind(this), 1000);
+	// 			return;
+	// 		}
+	// 	}
 
-		//try everything we can to stop the websocket.
-		this.ws.onopen = {};
-		this.ws.onclose = {};
-		this.ws.onerror = {};
-		this.ws.onmessage = {};
-		this.ws.close();
-		delete this.ws;
+	// 	//try everything we can to stop the websocket.
+	// 	this.ws.onopen = {};
+	// 	this.ws.onclose = {};
+	// 	this.ws.onerror = {};
+	// 	this.ws.onmessage = {};
+	// 	this.ws.close();
+	// 	delete this.ws;
 
-		//keep track of stuff.
-		this.retry_count = 0;
-		this.socket_retries++;
+	// 	//keep track of stuff.
+	// 	this.retry_count = 0;
+	// 	this.socket_retries++;
 
-		//reconnect!
-		this._createWebsocket();
+	// 	//reconnect!
+	// 	this._createWebsocket();
 
-		//set some bounds
-		let my_timeout = 500;
-		my_timeout = Math.max(my_timeout, this.socket_retries * this.heartbeat_rate);
-		my_timeout = Math.min(my_timeout, 60000);
+	// 	//set some bounds
+	// 	let my_timeout = 500;
+	// 	my_timeout = Math.max(my_timeout, this.socket_retries * this.heartbeat_rate);
+	// 	my_timeout = Math.min(my_timeout, 60000);
 
-		//tee it up.
-		this.log(`Reconnecting, try #${this.socket_retries}. Next try in ${my_timeout}ms.`);
-		setTimeout(this._retryConnection.bind(this), my_timeout);
-	}
+	// 	//tee it up.
+	// 	this.log(`Reconnecting, try #${this.socket_retries}. Next try in ${my_timeout}ms.`);
+	// 	setTimeout(this._retryConnection.bind(this), my_timeout);
+	// }
 }
 YarrboardClient.version = packageJSON.version;
 
