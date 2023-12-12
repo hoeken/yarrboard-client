@@ -1,13 +1,11 @@
 const ws = require('websocket');
 const packageJSON = require('./package.json');
 
-class YarrboardClient
-{
-	constructor(hostname="yarrboard.local", username="admin", password="admin", require_login = true, use_ssl = false)
-	{
+class YarrboardClient {
+	constructor(hostname = "yarrboard.local", username = "admin", password = "admin", require_login = true, use_ssl = false) {
 		this.config = false;
 		this.closed = false;
-	
+
 		this.hostname = hostname;
 		this.username = username;
 		this.password = password;
@@ -37,34 +35,48 @@ class YarrboardClient
 
 	}
 
-	start()
-	{
+	start() {
 		this._createWebsocket();
 		this._sendQueue();
 	}
 
-	startUpdatePoller(interval = 1000)
-	{
+	isOpen() {
+		return !this.closed && this.ws.readyState == WebSocket.OPEN;
+	}
+
+	status() {
+		if (this.ws) {
+			if (this.ws.readyState == WebSocket.CONNECTING)
+				return "CONNECTING";
+			else if (this.isOpen())
+				return "CONNECTED";
+			//TODO: find a way to get better feedback here.
+			// else if (status == "RETRYING")
+			// 	return "RETRYING";
+			else
+				return "FAILED";
+		}
+		else
+			return "CONNECTING";
+	}
+
+	startUpdatePoller(interval = 1000) {
 		this.update_interval = interval;
 		this._updatePoller();
 	}
 
-	_updatePoller()
-	{
-		if (!this.closed)
-		{
-		  this.getUpdate();
-			setTimeout(this._updatePoller.bind(this), this.update_interval);	
+	_updatePoller() {
+		if (!this.closed) {
+			this.getUpdate();
+			setTimeout(this._updatePoller.bind(this), this.update_interval);
 		}
 	}
 
-	log(text)
-	{
+	log(text) {
 		console.log(`[${this.hostname}] ${text}`);
 	}
 
-	close()
-	{
+	close() {
 		this.closed = true;
 		this.ws.onopen = {};
 		this.ws.onclose = {};
@@ -73,8 +85,7 @@ class YarrboardClient
 		this.ws.close();
 	}
 
-	login(username, password)
-	{
+	login(username, password) {
 		return this.json({
 			"cmd": "login",
 			"user": username,
@@ -82,22 +93,17 @@ class YarrboardClient
 		});
 	}
 
-	_sendQueue()
-	{
+	_sendQueue() {
 		//are we ready to party?
-		if (this.messageQueue.length && !this.closed && this.ws.readyState == ws.w3cwebsocket.OPEN)
-		{
+		if (this.messageQueue.length && !this.closed && this.ws.readyState == ws.w3cwebsocket.OPEN) {
 			//OTA is blocking... dont send messages
-			if (this.ota_started)
-			{
+			if (this.ota_started) {
 				this.log(`skipping due to ota`);
 			}
 			//are we waiting for a response?
-			else if(this.addMessageId && this.lastMessageId)
-			{
+			else if (this.addMessageId && this.lastMessageId) {
 				//check for timeouts
-				if (Date.now() - this.messageTimeout > this.lastMessageTime)
-				{
+				if (Date.now() - this.messageTimeout > this.lastMessageTime) {
 					this.log(`message ${this.lastMessageId} timed out`);
 					this.lastMessageId = 0;
 					this.lastMessageTime = 0;
@@ -105,17 +111,14 @@ class YarrboardClient
 
 				//this.log(`waiting on message ${this.lastMessageId}`);
 			}
-			else
-			{
-				try 
-				{
+			else {
+				try {
 					//FIFO
 					let message = this.messageQueue.shift();
 
 					//keep track of our messages?
 					this.sentMessageCount++;
-					if (this.addMessageId)
-					{
+					if (this.addMessageId) {
 						message.msgid = this.sentMessageCount;
 						this.lastMessageId = message.msgid;
 						this.lastMessageTime = Date.now();
@@ -133,63 +136,53 @@ class YarrboardClient
 		setTimeout(this._sendQueue.bind(this), 1);
 	}
 
-	json(message, queue = true)
-	{
-		if (queue || this.messageQueue.length == 0)
-		{
+	json(message, requireConfirmation = true) {
+		if (requireConfirmation || this.messageQueue.length == 0) {
 			this.messageQueue.push(message);
 		}
-		else
-		{
-			//this.log(this.messageQueue.length);			
+		else {
+			//this.log(this.messageQueue.length);
 		}
 	}
 
-	printMessageStats()
-	{
-		if (this.ws.readyState == ws.w3cwebsocket.OPEN && (!this.closed || Date.now() - this.last_heartbeat > this.heartbeat_rate * 3))
-		{
+	printMessageStats() {
+		if (this.ws.readyState == ws.w3cwebsocket.OPEN && (!this.closed || Date.now() - this.last_heartbeat > this.heartbeat_rate * 3)) {
 			let delta = Date.now() - this.lastMessageUpdateTime;
 			let rmps = Math.round(((this.receivedMessageCount - this.lastReceivedMessageCount) / delta) * 1000);
 			let smps = Math.round(((this.sentMessageCount - this.lastSentMessageCount) / delta) * 1000);
-	
+
 			this.log(`Recd m/s: ${rmps} | Sent m/s: ${smps} | Total Received/Sent: ${this.receivedMessageCount} / ${this.sentMessageCount}`);
-	
+
 			this.lastMessageUpdateTime = Date.now();
 			this.lastSentMessageCount = this.sentMessageCount;
-			this.lastReceivedMessageCount = this.receivedMessageCount;	
+			this.lastReceivedMessageCount = this.receivedMessageCount;
 		}
 
 		setTimeout(this.printMessageStats.bind(this), 1000);
 	}
 
-	getConfig()
-	{
-		return this.json({"cmd":"get_config"});
+	getConfig() {
+		return this.json({ "cmd": "get_config" });
 	}
 
-	getUpdate()
-	{
-		return this.json({"cmd":"get_update"});
+	getUpdate() {
+		return this.json({ "cmd": "get_update" });
 	}
 
-	getStats()
-	{
-		return this.json({"cmd":"get_stats"});
+	getStats() {
+		return this.json({ "cmd": "get_stats" });
 	}
 
-	fadePWMChannel(id, duty, millis, queue = true)
-	{
+	fadePWMChannel(id, duty, millis, queue = true) {
 		return this.json({
-            "cmd": "fade_pwm_channel",
-            "id": id,
-            "duty": duty,
-            "millis": millis
-        }, queue);
+			"cmd": "fade_pwm_channel",
+			"id": id,
+			"duty": duty,
+			"millis": millis
+		}, queue);
 	}
 
-	setPWMChannelState(id, state, queue = true)
-	{
+	setPWMChannelState(id, state, queue = true) {
 		return this.json({
 			"cmd": "set_pwm_channel",
 			"id": id,
@@ -197,8 +190,7 @@ class YarrboardClient
 		}, queue);
 	}
 
-	setPWMChannelDuty(id, duty, queue = true)
-	{
+	setPWMChannelDuty(id, duty, queue = true) {
 		return this.json({
 			"cmd": "set_pwm_channel",
 			"id": id,
@@ -206,16 +198,14 @@ class YarrboardClient
 		}, queue);
 	}
 
-	togglePWMChannel(id, queue = true)
-	{
+	togglePWMChannel(id, queue = true) {
 		return this.json({
-            "cmd": "toggle_pwm_channel",
-            "id": id
-        }, queue);
+			"cmd": "toggle_pwm_channel",
+			"id": id
+		}, queue);
 	}
 
-	setRGB(id, red = 0, green = 0, blue = 0, queue = true)
-	{
+	setRGB(id, red = 0, green = 0, blue = 0, queue = true) {
 		return this.json({
 			"cmd": "set_rgb",
 			"id": id,
@@ -225,26 +215,25 @@ class YarrboardClient
 		}, queue);
 	}
 
-	onopen(event) {}
+	onopen(event) { }
 
 	onmessage(message, event) {
 		//this.log(JSON.stringify(message));
 	}
 
-	onerror(event) {}
-	
-	onclose(event) {}
+	onerror(event) { }
 
-	_createWebsocket()
-	{
+	onclose(event) { }
+
+	_createWebsocket() {
 		//encrypt?
 		var protocol = "ws://";
 		if (this.use_ssl)
 			protocol = "wss://";
-    
-    //where to, boss?
-    let uri = `${protocol}${this.hostname}/ws`;
-    this.log(`Opening websocket to: ${uri}`);
+
+		//where to, boss?
+		let uri = `${protocol}${this.hostname}/ws`;
+		this.log(`Opening websocket to: ${uri}`);
 
 		//okay, connect
 		this.ws = new ws.w3cwebsocket(uri);
@@ -254,8 +243,7 @@ class YarrboardClient
 		this.ws.onmessage = this._onmessage.bind(this);
 	}
 
-	_onopen(event)
-	{
+	_onopen(event) {
 		this.log(`Connected`);
 
 		//we are connected, reload
@@ -282,8 +270,7 @@ class YarrboardClient
 		this.onopen(event);
 	}
 
-	_onerror(event)
-	{
+	_onerror(event) {
 		this.log(`Connection error:`);
 
 		this.onerror(event);
@@ -292,15 +279,14 @@ class YarrboardClient
 	_onclose(event) {
 		this.log(`Connection closed`);
 
-    this.closed = true;
+		this.closed = true;
 		this.onclose(event);
 
 		delete this.ws;
 		this._createWebsocket();
 	}
 
-	_onmessage(event)
-	{
+	_onmessage(event) {
 		this.receivedMessageCount++;
 
 		if (typeof event.data === 'string') {
@@ -319,111 +305,95 @@ class YarrboardClient
 					this.log(`Success: ${data.message}`);
 
 				//are we doing an OTA?
-				if (data.msg == "ota_progress")
-				{
+				if (data.msg == "ota_progress") {
 					this.ota_started = true;
 
 					//restart our socket when finished
-					if (data.progress == 100)
-					{
+					if (data.progress == 100) {
 						this.close();
 						this.start();
 					}
-				}
+				}	
 
 				//this is our heartbeat reply, ignore
-				if (data.pong) 
+				if (data.pong)
 					true;
 				else
 					this.onmessage(data, event);
 			}
-			catch (error)
-			{
+			catch (error) {
 				this.log(`Message error: ${error}`);
 			}
 		}
 	}
 
-	_sendHeartbeat()
-	{
+	_sendHeartbeat() {
 		//bail if we're done.
-		if (this.closed)
-		{
+		if (this.closed) {
 			return;
 		}
 
 		//did we not get a heartbeat?
-		if (Date.now() - this.last_heartbeat > this.heartbeat_rate * 3)
-		{
+		if (Date.now() - this.last_heartbeat > this.heartbeat_rate * 3) {
 			this.log(`Missed heartbeat`)
 			this.ws.close();
 			this._retryConnection();
 		}
 
 		//only send it if we're already open.
-		if (this.ws.readyState == ws.w3cwebsocket.OPEN)
-		{
-			this.json({"cmd": "ping"}, false);
+		if (this.ws.readyState == ws.w3cwebsocket.OPEN) {
+			this.json({ "cmd": "ping" }, false);
 			setTimeout(this._sendHeartbeat.bind(this), this.heartbeat_rate);
 		}
-		else if (this.ws.readyState == ws.w3cwebsocket.CLOSING)
-		{
+		else if (this.ws.readyState == ws.w3cwebsocket.CLOSING) {
 			this.log(`closing`);
 			this._retryConnection();
 		}
-		else if (this.ws.readyState == ws.w3cwebsocket.CLOSED)
-		{
+		else if (this.ws.readyState == ws.w3cwebsocket.CLOSED) {
 			this._retryConnection();
 		}
 	}
 
-	_retryConnection()
-	{
+	_retryConnection() {
 		//bail if we're done.
-		if (this.closed)
-		{
+		if (this.closed) {
 			console.log(`Connection closed`);
 			return;
 		}
-    //bail if its good to go
-		else if (this.ws.readyState == ws.w3cwebsocket.OPEN)
-		{
+		//bail if its good to go
+		else if (this.ws.readyState == ws.w3cwebsocket.OPEN) {
 			return;
 		}
 		//keep watching if we are connecting
-		else if (this.ws.readyState == ws.w3cwebsocket.CONNECTING)
-		{
+		else if (this.ws.readyState == ws.w3cwebsocket.CONNECTING) {
 			console.log(`waiting for connection to open`);
 			this.retry_count++;
 
 			//give it a little bit.
-      if (this.retry_count < 5)
-      {
-  			setTimeout(this._retryConnection.bind(this), 1000);
-  			return;        
-      }
+			if (this.retry_count < 5) {
+				setTimeout(this._retryConnection.bind(this), 1000);
+				return;
+			}
 		}
 		//keep watching if we are closing
-		else if (this.ws.readyState == ws.w3cwebsocket.CLOSING)
-		{
+		else if (this.ws.readyState == ws.w3cwebsocket.CLOSING) {
 			console.log(`waiting for connection to close`);
 			this.retry_count++;
 
 			//give it a little bit.
-      if (this.retry_count < 5)
-      {
-  			setTimeout(this._retryConnection.bind(this), 1000);
-  			return;        
-      }
+			if (this.retry_count < 5) {
+				setTimeout(this._retryConnection.bind(this), 1000);
+				return;
+			}
 		}
 
-    //try everything we can to stop the websocket.
-    this.ws.onopen = {};
-    this.ws.onclose = {};
-    this.ws.onerror = {};
-    this.ws.onmessage = {};
-    this.ws.close();
-    delete this.ws;
+		//try everything we can to stop the websocket.
+		this.ws.onopen = {};
+		this.ws.onclose = {};
+		this.ws.onerror = {};
+		this.ws.onmessage = {};
+		this.ws.close();
+		delete this.ws;
 
 		//keep track of stuff.
 		this.retry_count = 0;
