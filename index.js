@@ -20,6 +20,8 @@ class YarrboardClient {
 		this.messageQueue = [];
 		this.messageTimeout = 2000;
 
+		this.updateInterval = 1000;
+
 		this.messageQueueDelayMax = 250;
 		this.messageQueueDelayMin = 10; //limit the client to 100 messages / second
 		this.messageQueueDelay = this.messageQueueDelayMin;
@@ -182,6 +184,19 @@ class YarrboardClient {
 
 	getUpdate(requireConfirmation = false) {
 		return this.send({ "cmd": "get_update" }, requireConfirmation);
+	}
+
+	startUpdatePoller(update_interval) {
+		this.updateInterval = update_interval;
+		this._updatePoller();
+	}
+
+	_updatePoller() {
+		if (this.isOpen()) {
+			this.log("updater");
+			this.getUpdate();
+			setTimeout(this._updatePoller.bind(this), this.updateInterval);
+		}
 	}
 
 	getStats(requireConfirmation = false) {
