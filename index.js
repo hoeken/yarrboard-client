@@ -13,14 +13,16 @@ class YarrboardClient {
 		this.boardname = hostname.split(".")[0];
 		this.use_ssl = use_ssl;
 
-		//todo: remove this
-		this.update_interval = 1000;
-
 		this.addMessageId = false;
+		this.lastMessage = {};
 		this.lastMessageId = 0;
 		this.lastMessageTime = 0;
 		this.messageQueue = [];
-		this.messageTimeout = 5000;
+		this.messageTimeout = 2000;
+
+		this.messageQueueDelayMax = 250;
+		this.messageQueueDelayMin = 10; //limit the client to 100 messages / second
+		this.messageQueueDelay = this.messageQueueDelayMin;
 
 		this.ota_started = false;
 
@@ -86,52 +88,64 @@ class YarrboardClient {
 		//are we ready to party?
 		if (this.messageQueue.length && this.isOpen()) {
 			//OTA is blocking... dont send messages
-			if (this.ota_started) {
-				this.log(`skipping due to ota`);
-			}
-			//are we waiting for a response?
-			else if (this.addMessageId && this.lastMessageId) {
-				//check for timeouts
-				if (Date.now() - this.messageTimeout > this.lastMessageTime) {
-					this.log(`message ${this.lastMessageId} timed out`);
-					this.lastMessageId = 0;
-					this.lastMessageTime = 0;
-				}
+			if (this.ota_started)
+				return;
 
-				//this.log(`waiting on message ${this.lastMessageId}`);
-			}
-			else {
-				try {
+			try {
+				//are we waiting for a response?
+				if (this.lastMessageId) {
+					//check for timeouts
+					if ((Date.now() - this.messageTimeout) > this.lastMessageTime) {
+						this.log(`message ${this.lastMessageId} timed out, resending`);
+						this.lastMessage.msgid = this.sentMessageCount;
+						this.lastMessageId = this.lastMessage.msgid;
+						this.lastMessageTime = Date.now();
+						this.ws.send(JSON.stringify(this.lastMessage));
+					}
+
+					this.log(`waiting on message ${this.lastMessageId}`);
+				} else {
 					//FIFO
 					let message = this.messageQueue.shift();
-
-					//keep track of our messages?
 					this.sentMessageCount++;
-					if (this.addMessageId) {
+
+					//keep track of all messages?
+					if (this.addMessageId)
 						message.msgid = this.sentMessageCount;
+
+					//are we tracking this one?
+					if (message.msgid) {
+						this.lastMessage = message;
 						this.lastMessageId = message.msgid;
 						this.lastMessageTime = Date.now();
 					}
 
 					//finally send it off.
 					this.ws.send(JSON.stringify(message));
-				} catch (error) {
-					this.log(`Send error: ${error}`);
 				}
+			} catch (error) {
+				this.log(`Send error: ${error}`);
 			}
 		}
 
+		//relax our throttling, if any
+		this.messageQueueDelay = this.messageQueueDelay - 10;
+		this.messageQueueDelay = Math.max(this.messageQueueDelay, this.messageQueueDelayMin);
+
 		//keep calling the sender!
-		setTimeout(this._sendQueue.bind(this), 1);
+		setTimeout(this._sendQueue.bind(this), this.messageQueueDelay);
 	}
 
 	send(message, requireConfirmation = true) {
-		if (requireConfirmation || this.messageQueue.length == 0) {
+		//add a message id to required messages
+		if (requireConfirmation)
+			message["msgid"] = this.sentMessageCount;
+
+		//can we add it to the queue?
+		if (requireConfirmation || this.messageQueue.length <= 10)
 			this.messageQueue.push(message);
-		}
-		else {
-			//this.log(this.messageQueue.length);
-		}
+		// else
+		// 	this.log(`Skipping, message queue full: ${this.messageQueue.length}`);
 	}
 
 	printMessageStats() {
@@ -298,9 +312,10 @@ class YarrboardClient {
 				let data = JSON.parse(event.data);
 
 				//mark the message as received
-				if (this.addMessageId && data.msgid == this.lastMessageId)
+				if (this.lastMessageId && data.msgid == this.lastMessageId)
 					this.lastMessageId = 0;
 
+				//status?
 				if (data.status == "error")
 					this.log(`Error: ${data.message}`);
 				if (data.status == "success")
@@ -311,11 +326,19 @@ class YarrboardClient {
 					this.ota_started = true;
 
 					//restart our socket when finished
-					if (data.progress == 100) {
-						this.close();
-						this.start();
-					}
-				}	
+					// if (data.progress == 100) {
+					// 	this.close();
+					// 	this.start();
+					// }
+				}
+
+				//did we get a throttle message?
+				if (data.error == "Queue Full") {
+					//this.messageQueueDelay = Math.round(10 * (1 + Math.random()));
+					this.messageQueueDelay = this.messageQueueDelay + 25 + 25 * Math.random();
+					this.messageQueueDelay = Math.min(this.messageQueueDelayMax, this.messageQueueDelay)
+					this.log(`Throttling: ${this.messageQueueDelay}`);
+				}
 
 				//this is our heartbeat reply, ignore
 				if (data.pong)
