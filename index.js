@@ -193,7 +193,6 @@ class YarrboardClient {
 
 	_updatePoller() {
 		if (this.isOpen()) {
-			this.log("updater");
 			this.getUpdate();
 			setTimeout(this._updatePoller.bind(this), this.updateInterval);
 		}
