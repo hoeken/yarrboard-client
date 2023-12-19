@@ -104,8 +104,6 @@ class YarrboardClient {
 						this.lastMessageTime = Date.now();
 						this.ws.send(JSON.stringify(this.lastMessage));
 					}
-
-					this.log(`waiting on message ${this.lastMessageId}`);
 				} else {
 					//FIFO
 					let message = this.messageQueue.shift();
@@ -213,6 +211,14 @@ class YarrboardClient {
 	startOTA() {
 		client.send({"cmd": "ota_start"}, true);
 	}
+
+	setBrightness(brightness, requireConfirmation = true) {
+		return this.send({
+			"cmd": "set_brightness",
+			"brightness": brightness
+		}, requireConfirmation);
+	}
+
 
 	fadePWMChannel(id, duty, millis, requireConfirmation = true) {
 		return this.send({
