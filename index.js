@@ -255,11 +255,12 @@ class YarrboardClient {
 		}, requireConfirmation);
 	}
 
-	setPWMChannelState(id, state, requireConfirmation = true) {
+	setPWMChannelState(id, state, source, requireConfirmation = true) {
 		return this.send({
 			"cmd": "set_pwm_channel",
 			"id": id,
-			"state": state
+			"state": state,
+			"source": source
 		}, requireConfirmation);
 	}
 
@@ -271,10 +272,11 @@ class YarrboardClient {
 		}, requireConfirmation);
 	}
 
-	togglePWMChannel(id, requireConfirmation = true) {
+	togglePWMChannel(id, source, requireConfirmation = true) {
 		return this.send({
 			"cmd": "toggle_pwm_channel",
-			"id": id
+			"id": id,
+			"source": source
 		}, requireConfirmation);
 	}
 
@@ -420,6 +422,7 @@ class YarrboardClient {
 			}
 			catch (error) {
 				this.log(`Message error: ${error}`);
+				this.log(error.toString());
 			}
 		}
 	}
