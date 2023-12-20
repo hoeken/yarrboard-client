@@ -5,6 +5,10 @@ class YarrboardClient {
 	constructor(hostname = "yarrboard.local", username = "admin", password = "admin", require_login = true, use_ssl = false) {
 		this.config = false;
 		this.closed = false;
+		this.connectionRetryCount = 0;
+		this.maxConnectionRetries = 100;
+		this.state = "IDLE";
+		this.connectionStates = ["IDLE", "CONNECTING", "CONNECTED", "RETRYING", "FAILED"];
 
 		this.hostname = hostname;
 		this.username = username;
@@ -14,11 +18,12 @@ class YarrboardClient {
 		this.use_ssl = use_ssl;
 
 		this.addMessageId = false;
+		this.messageQueue = [];
 		this.lastMessage = {};
 		this.lastMessageId = 0;
 		this.lastMessageTime = 0;
-		this.messageQueue = [];
-		this.messageTimeout = 2000;
+		this.messageTimeout = 5000;
+		this.messageTimeoutCount = 0;
 
 		this.updateInterval = 1000;
 
@@ -46,19 +51,21 @@ class YarrboardClient {
 	}
 
 	status() {
-		if (this.ws) {
-			if (this.ws.readyState == ws.w3cwebsocket.CONNECTING)
-				return "CONNECTING";
-			else if (this.isOpen())
-				return "CONNECTED";
-			//TODO: find a way to get better feedback here.
-			// else if (status == "RETRYING")
-			// 	return "RETRYING";
-			else
-				return "FAILED";
-		}
-		else
-			return "CONNECTING";
+		return this.state;
+
+		// if (this.ws) {
+		// 	if (this.ws.readyState == ws.w3cwebsocket.CONNECTING)
+		// 		return "CONNECTING";
+		// 	else if (this.isOpen())
+		// 		return "CONNECTED";
+		// 	//TODO: find a way to get better feedback here.
+		// 	// else if (status == "RETRYING")
+		// 	// 	return "RETRYING";
+		// 	else
+		// 		return "FAILED";
+		// }
+		// else
+		// 	return "CONNECTING";
 	}
 
 	log(text) {
@@ -72,6 +79,7 @@ class YarrboardClient {
 		this.ws.onerror = {};
 		this.ws.onmessage = {};
 		this.ws.close();
+		this.state = "IDLE";
 	}
 
 	login(username, password) {
@@ -95,14 +103,31 @@ class YarrboardClient {
 
 			try {
 				//are we waiting for a response?
-				if (this.lastMessageId) {
-					//check for timeouts
+				if (this.lastMessageId)
+				{
+					//have we timed out?
 					if ((Date.now() - this.messageTimeout) > this.lastMessageTime) {
-						this.log(`message ${this.lastMessageId} timed out, resending`);
-						this.lastMessage.msgid = this.sentMessageCount;
-						this.lastMessageId = this.lastMessage.msgid;
-						this.lastMessageTime = Date.now();
-						this.ws.send(JSON.stringify(this.lastMessage));
+						this.messageTimeoutCount++;
+
+						this.log(`message ${this.lastMessageId} timed out #${this.messageTimeoutCount}`);
+
+						//bail if we've hit too many timeouts
+						if (this.messageTimeoutCount >= 3)
+						{
+							this.log(`bailing`);
+							this.lastMessage = null;
+							this.lastMessageId = 0;
+							this.lastMessageTime = 0;
+							this.messageTimeoutCount = 0;
+						}
+						else
+						{
+							this.log("resending: " + JSON.stringify(this.lastMessage));
+							//this.lastMessage.msgid = this.lastMessage.msgid;
+							//this.lastMessageId = this.lastMessage.msgid;
+							this.lastMessageTime = Date.now();
+							this.ws.send(JSON.stringify(this.lastMessage));
+						}
 					}
 				} else {
 					//FIFO
@@ -118,6 +143,7 @@ class YarrboardClient {
 						this.lastMessage = message;
 						this.lastMessageId = message.msgid;
 						this.lastMessageTime = Date.now();
+						this.messageTimeoutCount = 0;
 					}
 
 					//finally send it off.
@@ -282,6 +308,12 @@ class YarrboardClient {
 		let uri = `${protocol}${this.hostname}/ws`;
 		this.log(`Opening websocket to: ${uri}`);
 
+		//update our state
+		if (this.connectionRetryCount > 0)
+			this.state = "RETRYING";
+		else
+			this.state = "CONNECTING";
+
 		//okay, connect
 		this.ws = new ws.w3cwebsocket(uri);
 		this.ws.onopen = this._onopen.bind(this);
@@ -293,12 +325,16 @@ class YarrboardClient {
 	_onopen(event) {
 		this.log(`Connected`);
 
+		//update our state
+		this.state = "CONNECTED";
+
 		//we are connected, reload
 		this.closed = false;
 		this.ota_started = false;
 		this.lastMessageId = 0;
 		this.lastMessageTime = 0;
 		this.messageQueue = [];
+		this.connectionRetryCount = 0;
 
 		//handle login
 		if (this.require_login)
@@ -320,8 +356,19 @@ class YarrboardClient {
 		this.closed = true;
 		this.onclose(event);
 
-		delete this.ws;
-		this._createWebsocket();
+		//update our retries
+		this.connectionRetryCount++;
+
+		if (this.connectionRetryCount <= this.maxConnectionRetries)
+		{
+			delete this.ws;
+			this._createWebsocket();	
+		}
+		else
+		{
+			this.log(`${this.connectionRetryCount} max retries, connection failed.`);
+			this.state = "FAILED";
+		}
 	}
 
 	_onmessage(event) {
@@ -331,9 +378,20 @@ class YarrboardClient {
 			try {
 				let data = JSON.parse(event.data);
 
-				//mark the message as received
-				if (this.lastMessageId && data.msgid == this.lastMessageId)
-					this.lastMessageId = 0;
+				//check for a message reply.
+				if (data.msgid)
+				{
+					if (data.msgid == this.lastMessageId)
+					{
+						this.lastMessageId = 0;
+						this.messageTimeoutCount = 0;
+					}
+					else
+					{
+						this.log(`unknown msgid ${data.msgid}, looking for ${this.lastMessageId}`);
+						this.log(JSON.stringify(data));
+					}
+				}
 
 				//status?
 				if (data.status == "error")
@@ -342,18 +400,12 @@ class YarrboardClient {
 					this.log(`Success: ${data.message}`);
 
 				//are we doing an OTA?
-				if (data.msg == "ota_progress") {
+				if (data.msg == "ota_progress")
 					this.ota_started = true;
 
-					//restart our socket when finished
-					// if (data.progress == 100) {
-					// 	this.close();
-					// 	this.start();
-					// }
-				}
-
 				//did we get a throttle message?
-				if (data.error == "Queue Full") {
+				if (data.error == "Queue Full")
+				{
 					//this.messageQueueDelay = Math.round(10 * (1 + Math.random()));
 					this.messageQueueDelay = this.messageQueueDelay + 25 + 25 * Math.random();
 					this.messageQueueDelay = Math.min(this.messageQueueDelayMax, this.messageQueueDelay)
