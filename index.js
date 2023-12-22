@@ -6,7 +6,7 @@ class YarrboardClient {
 		this.config = false;
 		this.closed = false;
 		this.connectionRetryCount = 0;
-		this.maxConnectionRetries = 100;
+		this.maxConnectionRetries = 0; // 0 = try forever
 		this.state = "IDLE";
 		this.connectionStates = ["IDLE", "CONNECTING", "CONNECTED", "RETRYING", "FAILED"];
 
@@ -245,6 +245,19 @@ class YarrboardClient {
 		}, requireConfirmation);
 	}
 
+	setSwitchState(id, state, source, requireConfirmation = true) {
+		if (state === true)
+			state = "ON";
+		else if (state === false)
+			state = "OFF";
+		
+		return this.send({
+			"cmd": "set_switch",
+			"id": id,
+			"state": state,
+			"source": source
+		}, requireConfirmation);
+	}
 
 	fadePWMChannel(id, duty, millis, requireConfirmation = true) {
 		return this.send({
@@ -256,6 +269,11 @@ class YarrboardClient {
 	}
 
 	setPWMChannelState(id, state, source, requireConfirmation = true) {
+		if (state === true)
+			state = "ON";
+		else if (state === false)
+			state = "OFF";
+		
 		return this.send({
 			"cmd": "set_pwm_channel",
 			"id": id,
@@ -358,11 +376,12 @@ class YarrboardClient {
 		this.closed = true;
 		this.onclose(event);
 
-		//update our retries
-		this.connectionRetryCount++;
-
-		if (this.connectionRetryCount <= this.maxConnectionRetries)
+		//did we hit our max?
+		if (this.maxConnectionRetries > 0 && this.connectionRetryCount <= this.maxConnectionRetries)
 		{
+			//update our retries
+			this.connectionRetryCount++;
+
 			delete this.ws;
 			this._createWebsocket();	
 		}
