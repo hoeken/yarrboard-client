@@ -6,7 +6,7 @@ class YarrboardClient {
 		this.config = false;
 		this.closed = false;
 		this.connectionRetryCount = 0;
-		this.maxConnectionRetries = 0; // 0 = try forever
+		this.maxConnectionRetries = -1; // -1 = try forever
 		this.state = "IDLE";
 		this.connectionStates = ["IDLE", "CONNECTING", "CONNECTED", "RETRYING", "FAILED"];
 
@@ -377,7 +377,7 @@ class YarrboardClient {
 		this.onclose(event);
 
 		//did we hit our max?
-		if (this.maxConnectionRetries > 0 && this.connectionRetryCount <= this.maxConnectionRetries)
+		if (this.maxConnectionRetries == -1 || this.connectionRetryCount <= this.maxConnectionRetries)
 		{
 			//update our retries
 			this.connectionRetryCount++;
