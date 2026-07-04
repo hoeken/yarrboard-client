@@ -1,4 +1,4 @@
-const ws = require('websocket');
+const WebSocket = require('ws');
 const packageJSON = require('./package.json');
 
 class YarrboardClient {
@@ -47,25 +47,11 @@ class YarrboardClient {
 	}
 
 	isOpen() {
-		return !this.closed && this.ws.readyState == ws.w3cwebsocket.OPEN;
+		return !this.closed && this.ws.readyState == WebSocket.OPEN;
 	}
 
 	status() {
 		return this.state;
-
-		// if (this.ws) {
-		// 	if (this.ws.readyState == ws.w3cwebsocket.CONNECTING)
-		// 		return "CONNECTING";
-		// 	else if (this.isOpen())
-		// 		return "CONNECTED";
-		// 	//TODO: find a way to get better feedback here.
-		// 	// else if (status == "RETRYING")
-		// 	// 	return "RETRYING";
-		// 	else
-		// 		return "FAILED";
-		// }
-		// else
-		// 	return "CONNECTING";
 	}
 
 	log(text) {
@@ -91,7 +77,7 @@ class YarrboardClient {
 	}
 
 	logout() {
-		return this.send({"cmd": "logout"}, true);
+		return this.send({ "cmd": "logout" }, true);
 	}
 
 	_sendQueue() {
@@ -103,8 +89,7 @@ class YarrboardClient {
 
 			try {
 				//are we waiting for a response?
-				if (this.lastMessageId)
-				{
+				if (this.lastMessageId) {
 					//have we timed out?
 					if ((Date.now() - this.messageTimeout) > this.lastMessageTime) {
 						this.messageTimeoutCount++;
@@ -112,19 +97,15 @@ class YarrboardClient {
 						this.log(`message ${this.lastMessageId} timed out #${this.messageTimeoutCount}`);
 
 						//bail if we've hit too many timeouts
-						if (this.messageTimeoutCount >= 3)
-						{
+						if (this.messageTimeoutCount >= 3) {
 							this.log(`bailing`);
 							this.lastMessage = null;
 							this.lastMessageId = 0;
 							this.lastMessageTime = 0;
 							this.messageTimeoutCount = 0;
 						}
-						else
-						{
+						else {
 							this.log("resending: " + JSON.stringify(this.lastMessage));
-							//this.lastMessage.msgid = this.lastMessage.msgid;
-							//this.lastMessageId = this.lastMessage.msgid;
 							this.lastMessageTime = Date.now();
 							this.ws.send(JSON.stringify(this.lastMessage));
 						}
@@ -227,15 +208,15 @@ class YarrboardClient {
 	}
 
 	restart() {
-		return this.send({"cmd": "restart"}, true);
+		return this.send({ "cmd": "restart" }, true);
 	}
 
 	factoryReset() {
-		return this.send({"cmd": "factory_reset"}, true);
+		return this.send({ "cmd": "factory_reset" }, true);
 	}
 
 	startOTA() {
-		client.send({"cmd": "ota_start"}, true);
+		client.send({ "cmd": "ota_start" }, true);
 	}
 
 	setBrightness(brightness, requireConfirmation = true) {
@@ -245,20 +226,9 @@ class YarrboardClient {
 		}, requireConfirmation);
 	}
 
-	setSwitchState(id, state, source, requireConfirmation = true) {
-		if (state === true)
-			state = "ON";
-		else if (state === false)
-			state = "OFF";
-		
-		return this.send({
-			"cmd": "set_switch",
-			"id": id,
-			"state": state,
-			"source": source
-		}, requireConfirmation);
-	}
-
+	/**
+	 * @deprecated This method is deprecated and will be removed in a future release.
+	 */
 	fadePWMChannel(id, duty, millis, requireConfirmation = true) {
 		return this.send({
 			"cmd": "fade_pwm_channel",
@@ -268,12 +238,15 @@ class YarrboardClient {
 		}, requireConfirmation);
 	}
 
+	/**
+	 * @deprecated This method is deprecated and will be removed in a future release.
+	 */
 	setPWMChannelState(id, state, source, requireConfirmation = true) {
 		if (state === true)
 			state = "ON";
 		else if (state === false)
 			state = "OFF";
-		
+
 		return this.send({
 			"cmd": "set_pwm_channel",
 			"id": id,
@@ -282,6 +255,9 @@ class YarrboardClient {
 		}, requireConfirmation);
 	}
 
+	/**
+	 * @deprecated This method is deprecated and will be removed in a future release.
+	 */
 	setPWMChannelDuty(id, duty, requireConfirmation = true) {
 		return this.send({
 			"cmd": "set_pwm_channel",
@@ -290,6 +266,9 @@ class YarrboardClient {
 		}, requireConfirmation);
 	}
 
+	/**
+	 * @deprecated This method is deprecated and will be removed in a future release.
+	 */
 	togglePWMChannel(id, source, requireConfirmation = true) {
 		return this.send({
 			"cmd": "toggle_pwm_channel",
@@ -298,6 +277,9 @@ class YarrboardClient {
 		}, requireConfirmation);
 	}
 
+	/**
+	 * @deprecated This method is deprecated and will be removed in a future release.
+	 */
 	setRGB(id, red = 0, green = 0, blue = 0, requireConfirmation = false) {
 		return this.send({
 			"cmd": "set_rgb",
@@ -335,7 +317,7 @@ class YarrboardClient {
 			this.state = "CONNECTING";
 
 		//okay, connect
-		this.ws = new ws.w3cwebsocket(uri);
+		this.ws = new WebSocket(uri);
 		this.ws.onopen = this._onopen.bind(this);
 		this.ws.onerror = this._onerror.bind(this);
 		this.ws.onclose = this._onclose.bind(this);
@@ -377,16 +359,14 @@ class YarrboardClient {
 		this.onclose(event);
 
 		//did we hit our max?
-		if (this.maxConnectionRetries == -1 || this.connectionRetryCount <= this.maxConnectionRetries)
-		{
+		if (this.maxConnectionRetries == -1 || this.connectionRetryCount <= this.maxConnectionRetries) {
 			//update our retries
 			this.connectionRetryCount++;
 
 			delete this.ws;
-			this._createWebsocket();	
+			this._createWebsocket();
 		}
-		else
-		{
+		else {
 			this.log(`${this.connectionRetryCount} max retries, connection failed.`);
 			this.state = "FAILED";
 		}
@@ -400,15 +380,12 @@ class YarrboardClient {
 				let data = JSON.parse(event.data);
 
 				//check for a message reply.
-				if (data.msgid)
-				{
-					if (data.msgid == this.lastMessageId)
-					{
+				if (data.msgid) {
+					if (data.msgid == this.lastMessageId) {
 						this.lastMessageId = 0;
 						this.messageTimeoutCount = 0;
 					}
-					else
-					{
+					else {
 						this.log(`unknown msgid ${data.msgid}, looking for ${this.lastMessageId}`);
 						this.log(JSON.stringify(data));
 					}
@@ -425,8 +402,7 @@ class YarrboardClient {
 					this.ota_started = true;
 
 				//did we get a throttle message?
-				if (data.error == "Queue Full")
-				{
+				if (data.error == "Queue Full") {
 					//this.messageQueueDelay = Math.round(10 * (1 + Math.random()));
 					this.messageQueueDelay = this.messageQueueDelay + 25 + 25 * Math.random();
 					this.messageQueueDelay = Math.min(this.messageQueueDelayMax, this.messageQueueDelay)
