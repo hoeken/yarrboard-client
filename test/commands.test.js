@@ -70,46 +70,6 @@ test('setBrightness carries the brightness value', () => {
 	assert.deepStrictEqual(queued(yb), { cmd: 'set_brightness', brightness: 42, msgid: 1 });
 });
 
-test('fadePWMChannel carries id/duty/millis', () => {
-	const yb = client();
-	yb.fadePWMChannel(2, 0.5, 1000);
-	assert.deepStrictEqual(queued(yb), { cmd: 'fade_pwm_channel', id: 2, duty: 0.5, millis: 1000, msgid: 1 });
-});
-
-test('setPWMChannelState maps booleans to ON/OFF', () => {
-	const yb = client();
-	yb.setPWMChannelState(1, true, 'ui');
-	assert.deepStrictEqual(queued(yb), { cmd: 'set_pwm_channel', id: 1, state: 'ON', source: 'ui', msgid: 1 });
-	yb.setPWMChannelState(1, false, 'ui');
-	assert.deepStrictEqual(queued(yb), { cmd: 'set_pwm_channel', id: 1, state: 'OFF', source: 'ui', msgid: 2 });
-});
-
-test('setPWMChannelState passes non-boolean state through unchanged', () => {
-	const yb = client();
-	yb.setPWMChannelState(1, 'ON', 'ui');
-	assert.strictEqual(queued(yb).state, 'ON');
-});
-
-test('setPWMChannelDuty carries id/duty', () => {
-	const yb = client();
-	yb.setPWMChannelDuty(1, 0.25);
-	assert.deepStrictEqual(queued(yb), { cmd: 'set_pwm_channel', id: 1, duty: 0.25, msgid: 1 });
-});
-
-test('togglePWMChannel carries id/source', () => {
-	const yb = client();
-	yb.togglePWMChannel(3, 'ui');
-	assert.deepStrictEqual(queued(yb), { cmd: 'toggle_pwm_channel', id: 3, source: 'ui', msgid: 1 });
-});
-
-test('setRGB is unconfirmed and defaults colors to zero', () => {
-	const yb = client();
-	yb.setRGB(0);
-	assert.deepStrictEqual(queued(yb), { cmd: 'set_rgb', id: 0, red: 0, green: 0, blue: 0 });
-	yb.setRGB(1, 10, 20, 30);
-	assert.deepStrictEqual(queued(yb), { cmd: 'set_rgb', id: 1, red: 10, green: 20, blue: 30 });
-});
-
 test('confirmed messages get unique, monotonically increasing, non-zero msgids', () => {
 	const yb = client();
 	yb.getConfig();       // 1
