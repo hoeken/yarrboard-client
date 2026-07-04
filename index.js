@@ -5,6 +5,8 @@ class YarrboardClient {
 	constructor(hostname = "yarrboard.local", username = "admin", password = "admin", require_login = true, use_ssl = false) {
 		this.config = false;
 		this.closed = false;
+		this.stopped = false;
+		this.ws = null;
 		this.connectionRetryCount = 0;
 		this.maxConnectionRetries = -1; // -1 = try forever
 		this.state = "IDLE";
@@ -21,6 +23,7 @@ class YarrboardClient {
 		this.messageQueue = [];
 		this.lastMessage = {};
 		this.lastMessageId = 0;
+		this.nextMessageId = 1;
 		this.lastMessageTime = 0;
 		this.messageTimeout = 5000;
 		this.messageTimeoutCount = 0;
@@ -42,12 +45,13 @@ class YarrboardClient {
 	}
 
 	start() {
+		this.stopped = false;
 		this._createWebsocket();
 		this._sendQueue();
 	}
 
 	isOpen() {
-		return !this.closed && this.ws.readyState == WebSocket.OPEN;
+		return !this.closed && !!this.ws && this.ws.readyState == WebSocket.OPEN;
 	}
 
 	status() {
@@ -60,11 +64,16 @@ class YarrboardClient {
 
 	close() {
 		this.closed = true;
-		this.ws.onopen = {};
-		this.ws.onclose = {};
-		this.ws.onerror = {};
-		this.ws.onmessage = {};
-		this.ws.close();
+		this.stopped = true;
+		if (this.ws) {
+			this.ws.onopen = {};
+			this.ws.onclose = {};
+			//keep a no-op error handler: closing a still-connecting socket emits an
+			//'error', and with no listener ws would throw it as an uncaughtException.
+			this.ws.onerror = () => { };
+			this.ws.onmessage = {};
+			this.ws.close();
+		}
 		this.state = "IDLE";
 	}
 
@@ -81,6 +90,10 @@ class YarrboardClient {
 	}
 
 	_sendQueue() {
+		//have we been shut down for good? (close() stops the loop; disconnects do not)
+		if (this.stopped)
+			return;
+
 		//are we ready to party?
 		if (this.messageQueue.length && this.isOpen()) {
 			//OTA is blocking... dont send messages
@@ -117,7 +130,7 @@ class YarrboardClient {
 
 					//keep track of all messages?
 					if (this.addMessageId)
-						message.msgid = this.sentMessageCount;
+						message.msgid = this.nextMessageId++;
 
 					//are we tracking this one?
 					if (message.msgid) {
@@ -146,7 +159,7 @@ class YarrboardClient {
 	send(message, requireConfirmation = true) {
 		//add a message id to required messages
 		if (requireConfirmation)
-			message["msgid"] = this.sentMessageCount;
+			message["msgid"] = this.nextMessageId++;
 
 		//can we add it to the queue?
 		if (requireConfirmation || this.messageQueue.length <= 10)
@@ -216,7 +229,7 @@ class YarrboardClient {
 	}
 
 	startOTA() {
-		client.send({ "cmd": "ota_start" }, true);
+		return this.send({ "cmd": "ota_start" }, true);
 	}
 
 	setBrightness(brightness, requireConfirmation = true) {
