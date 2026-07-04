@@ -1,10 +1,8 @@
-#!/usr/bin/env node
+const { test } = require('node:test');
+const assert = require('node:assert');
 const YarrboardClient = require('../');
-const mocha = require('mocha');
 
-describe('YarrboardClient()', function () {
-    it('create our object without error', function (done) {
-        let yb = new YarrboardClient();
-        done();
-    });
+test('create our object without error', () => {
+	const yb = new YarrboardClient();
+	assert.ok(yb instanceof YarrboardClient);
 });
