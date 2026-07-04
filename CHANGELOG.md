@@ -1,3 +1,11 @@
+# v1.4.1
+
+_2026-07-04_
+
+### Changed
+
+- **Lowered the minimum Node.js version from 22 to 20.11.0** (`engines.node` is `>=20.11.0`). The runtime uses nothing newer, and 20.11.0 is the first release with the `mock.timers` `{ apis }` option the test suite relies on.
+
 # v1.4.0
 
 _2026-07-04_
