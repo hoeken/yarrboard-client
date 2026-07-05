@@ -17,6 +17,8 @@
 		"node": ">=20.11.0"
 	},
 	"scripts": {
+		"lint": "eslint .",
+		"prepare": "git config core.hooksPath .githooks || true",
 		"test": "node --test",
 		"release": "git tag -d v$npm_package_version; git tag v$npm_package_version && git push && git push origin v$npm_package_version"
 	},
@@ -29,5 +31,10 @@
 	],
 	"dependencies": {
 		"ws": "^8.18.0"
+	},
+	"devDependencies": {
+		"@eslint/js": "^9.39.4",
+		"eslint": "^9.39.4",
+		"globals": "^17.7.0"
 	}
 }

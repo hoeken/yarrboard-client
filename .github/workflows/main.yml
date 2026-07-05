@@ -3,6 +3,17 @@ on:
   - push
   - pull_request
 jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm install
+      - run: npm run lint
+
   test:
     name: Node.js ${{ matrix.node-version }}
     runs-on: ubuntu-latest
@@ -10,8 +21,9 @@ jobs:
       fail-fast: false
       matrix:
         node-version:
-          - 24
+          - 20
           - 22
+          - 24
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

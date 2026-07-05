@@ -1,0 +1,16 @@
+#!/bin/sh
+# Lint (and auto-fix) staged JavaScript before each commit.
+# Auto-wired via the package.json "prepare" script (git core.hooksPath).
+
+files=$(git diff --cached --name-only --diff-filter=ACM -- '*.js')
+[ -z "$files" ] && exit 0
+
+# shellcheck disable=SC2086
+npx --no-install eslint --fix $files || {
+	echo "ESLint reported problems that could not be auto-fixed; commit aborted." >&2
+	exit 1
+}
+
+# Re-stage anything --fix rewrote.
+# shellcheck disable=SC2086
+git add $files
