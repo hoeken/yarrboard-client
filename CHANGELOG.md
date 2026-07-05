@@ -1,3 +1,21 @@
+# v1.5.0
+
+_2026-07-05_
+
+### Added
+
+- `ping()` — sends a `ping` command (confirmed by default; pass `false` for a lightweight fire-and-forget heartbeat).
+- `getFullConfig()` and `getShareableConfig()` — request the board's full and shareable configuration (`get_full_config` / `get_shareable_config`).
+- `setTheme(theme)` — sets the app theme. Accepts only `'light'` or `'dark'`; throws a `RangeError` otherwise.
+
+### Changed
+
+- **`setBrightness()` now validates its argument.** It throws a `RangeError` unless the value is a finite number between 0 and 1 inclusive, rather than forwarding out-of-range values to the board.
+
+### Removed
+
+- The `getNetworkConfig()` and `getAppConfig()` helpers. Send the corresponding `cmd` (`get_network_config` / `get_app_config`) via `send()` directly if you still need them.
+
 # v1.4.1
 
 _2026-07-04_

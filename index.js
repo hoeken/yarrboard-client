@@ -184,6 +184,10 @@ class YarrboardClient {
 		setTimeout(this.printMessageStats.bind(this), 1000);
 	}
 
+	ping(requireConfirmation = true) {
+		return this.send({ "cmd": "ping" }, requireConfirmation);
+	}
+
 	sayHello(requireConfirmation = true) {
 		return this.send({ "cmd": "hello" }, requireConfirmation);
 	}
@@ -192,12 +196,12 @@ class YarrboardClient {
 		return this.send({ "cmd": "get_config" }, requireConfirmation);
 	}
 
-	getNetworkConfig(requireConfirmation = true) {
-		return this.send({ "cmd": "get_network_config" }, requireConfirmation);
+	getFullConfig(requireConfirmation = true) {
+		return this.send({ "cmd": "get_full_config" }, requireConfirmation);
 	}
 
-	getAppConfig(requireConfirmation = true) {
-		return this.send({ "cmd": "get_app_config" }, requireConfirmation);
+	getShareableConfig(requireConfirmation = true) {
+		return this.send({ "cmd": "get_shareable_config" }, requireConfirmation);
 	}
 
 	getUpdate(requireConfirmation = false) {
@@ -233,9 +237,24 @@ class YarrboardClient {
 	}
 
 	setBrightness(brightness, requireConfirmation = true) {
+		//must be a real number between 0 and 1 inclusive
+		if (typeof brightness !== "number" || !Number.isFinite(brightness) || brightness < 0 || brightness > 1)
+			throw new RangeError(`brightness must be a number between 0 and 1 inclusive, got: ${brightness}`);
+
 		return this.send({
 			"cmd": "set_brightness",
 			"brightness": brightness
+		}, requireConfirmation);
+	}
+
+	setTheme(theme, requireConfirmation = true) {
+		//can only be 'light' or 'dark'
+		if (theme !== "light" && theme !== "dark")
+			throw new RangeError(`theme must be 'light' or 'dark', got: ${theme}`);
+
+		return this.send({
+			"cmd": "set_theme",
+			"theme": theme
 		}, requireConfirmation);
 	}
 

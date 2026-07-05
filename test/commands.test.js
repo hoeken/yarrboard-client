@@ -32,14 +32,26 @@ test('sayHello queues a hello command (confirmed by default)', () => {
 	assert.deepStrictEqual(queued(yb), { cmd: 'hello', msgid: 1 });
 });
 
+test('ping queues a ping command (confirmed by default)', () => {
+	const yb = client();
+	yb.ping();
+	assert.deepStrictEqual(queued(yb), { cmd: 'ping', msgid: 1 });
+});
+
+test('ping can be sent unconfirmed (no msgid)', () => {
+	const yb = client();
+	yb.ping(false);
+	assert.deepStrictEqual(queued(yb), { cmd: 'ping' });
+});
+
 test('config getters queue the right commands', () => {
 	const yb = client();
 	yb.getConfig();
 	assert.deepStrictEqual(queued(yb), { cmd: 'get_config', msgid: 1 });
-	yb.getNetworkConfig();
-	assert.deepStrictEqual(queued(yb), { cmd: 'get_network_config', msgid: 2 });
-	yb.getAppConfig();
-	assert.deepStrictEqual(queued(yb), { cmd: 'get_app_config', msgid: 3 });
+	yb.getFullConfig();
+	assert.deepStrictEqual(queued(yb), { cmd: 'get_full_config', msgid: 2 });
+	yb.getShareableConfig();
+	assert.deepStrictEqual(queued(yb), { cmd: 'get_shareable_config', msgid: 3 });
 });
 
 test('getUpdate and getStats are unconfirmed (no msgid)', () => {
@@ -66,8 +78,46 @@ test('startOTA queues an ota_start command (regression: used to throw on undefin
 
 test('setBrightness carries the brightness value', () => {
 	const yb = client();
-	yb.setBrightness(42);
-	assert.deepStrictEqual(queued(yb), { cmd: 'set_brightness', brightness: 42, msgid: 1 });
+	yb.setBrightness(0.42);
+	assert.deepStrictEqual(queued(yb), { cmd: 'set_brightness', brightness: 0.42, msgid: 1 });
+});
+
+test('setBrightness accepts the inclusive bounds 0 and 1', () => {
+	const yb = client();
+	assert.doesNotThrow(() => yb.setBrightness(0));
+	assert.deepStrictEqual(queued(yb), { cmd: 'set_brightness', brightness: 0, msgid: 1 });
+	assert.doesNotThrow(() => yb.setBrightness(1));
+	assert.deepStrictEqual(queued(yb), { cmd: 'set_brightness', brightness: 1, msgid: 2 });
+});
+
+test('setBrightness rejects out-of-range, non-finite, and non-numeric values without queueing', () => {
+	const yb = client();
+	for (const bad of [-0.1, 1.1, 42, NaN, Infinity, -Infinity, '0.5', null, undefined, {}]) {
+		assert.throws(() => yb.setBrightness(bad), RangeError, `expected ${String(bad)} to be rejected`);
+	}
+	assert.strictEqual(yb.messageQueue.length, 0);
+});
+
+test('setTheme queues a set_theme command with a theme key (not set_theme)', () => {
+	const yb = client();
+	yb.setTheme('light');
+	assert.deepStrictEqual(queued(yb), { cmd: 'set_theme', theme: 'light', msgid: 1 });
+	yb.setTheme('dark');
+	assert.deepStrictEqual(queued(yb), { cmd: 'set_theme', theme: 'dark', msgid: 2 });
+});
+
+test('setTheme can be sent unconfirmed (no msgid)', () => {
+	const yb = client();
+	yb.setTheme('dark', false);
+	assert.deepStrictEqual(queued(yb), { cmd: 'set_theme', theme: 'dark' });
+});
+
+test('setTheme rejects anything other than light or dark without queueing', () => {
+	const yb = client();
+	for (const bad of ['Light', 'DARK', 'blue', '', ' light', undefined, null, 0]) {
+		assert.throws(() => yb.setTheme(bad), RangeError, `expected ${String(bad)} to be rejected`);
+	}
+	assert.strictEqual(yb.messageQueue.length, 0);
 });
 
 test('confirmed messages get unique, monotonically increasing, non-zero msgids', () => {
