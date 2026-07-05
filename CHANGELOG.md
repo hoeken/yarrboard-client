@@ -7,6 +7,9 @@ _2026-07-05_
 - `ping()` — sends a `ping` command (confirmed by default; pass `false` for a lightweight fire-and-forget heartbeat).
 - `getFullConfig()` and `getShareableConfig()` — request the board's full and shareable configuration (`get_full_config` / `get_shareable_config`).
 - `setTheme(theme)` — sets the app theme. Accepts only `'light'` or `'dark'`; throws a `RangeError` otherwise.
+- Linting with [ESLint](https://eslint.org/) — run it with `npm run lint`.
+- A pre-commit hook (`.githooks/pre-commit`) that runs `eslint --fix` on staged JavaScript and blocks the commit on unfixable problems. It enables itself on `npm install` (via a `prepare` script that points `core.hooksPath` at `.githooks`).
+- CI now runs the linter and exercises the test suite on Node 20, in addition to 22 and 24.
 
 ### Changed
 
